@@ -77,12 +77,39 @@ class ScriptDialog(ctk.CTkToplevel):
         self.result = {"name": self.name_var.get(), "description": self.desc_var.get(), "path": self.path_var.get(), "excel_path": self.excel_path_var.get(), "tab": self.tab_var.get(), "notes": self.notes_textbox.get("1.0", "end-1c"), "group": self.group_var.get().strip()}
         self.destroy()
 
+class SelectTabDialog(ctk.CTkToplevel):
+    """Finestra di dialogo per selezionare una scheda da un elenco."""
+    def __init__(self, parent, tab_names, title, prompt):
+        super().__init__(parent)
+        self.title(title)
+        self.geometry("350x150")
+        self.transient(parent)
+        self.result = None
+
+        self.label = ctk.CTkLabel(self, text=prompt)
+        self.label.pack(padx=20, pady=10)
+
+        self.tab_var = ctk.StringVar(value=tab_names[0])
+        self.tab_menu = ctk.CTkOptionMenu(self, variable=self.tab_var, values=tab_names, width=300)
+        self.tab_menu.pack(padx=20, pady=5)
+
+        button_frame = ctk.CTkFrame(self)
+        button_frame.pack(pady=15)
+        ctk.CTkButton(button_frame, text="OK", command=self.on_ok).pack(side="left", padx=10)
+        ctk.CTkButton(button_frame, text="Annulla", command=self.destroy).pack(side="left", padx=10)
+
+        self.grab_set()
+
+    def on_ok(self):
+        self.result = self.tab_var.get()
+        self.destroy()
+
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Dashboard di Avvio Script")
         self.geometry("700x500")
-        self.state('zoomed')
+        self.attributes("-fullscreen", True)
         ctk.set_appearance_mode("System")
         ctk.set_default_color_theme("blue")
         self.data_file = "data.json"
@@ -340,19 +367,22 @@ class App(ctk.CTk):
         self._show_restart_dialog()
 
     def _rename_tab(self):
-        dialog = ctk.CTkInputDialog(text="Quale scheda vuoi rinominare?", title="Rinomina Scheda")
-        old_name = dialog.get_input()
-        if not old_name or old_name not in self.user_tab_names:
-            messagebox.showerror("Errore", "Scheda non valida o non trovata.")
-            return
+        select_dialog = SelectTabDialog(self, self.user_tab_names, "Rinomina Scheda", "Seleziona la scheda da rinominare:")
+        self.wait_window(select_dialog)
+        old_name = select_dialog.result
+
+        if not old_name: return
+
         new_name_dialog = ctk.CTkInputDialog(text=f"Inserisci il nuovo nome per la scheda '{old_name}':", title="Rinomina Scheda")
         new_name = new_name_dialog.get_input()
+
         if not new_name or not new_name.strip(): return
         new_name = new_name.strip()
         if new_name == old_name: return
         if new_name in self.tab_names:
             messagebox.showerror("Errore", f"La scheda '{new_name}' esiste già.")
             return
+
         try:
             index = self.user_tab_names.index(old_name)
             self.user_tab_names[index] = new_name
@@ -361,6 +391,7 @@ class App(ctk.CTk):
         except ValueError:
             messagebox.showerror("Errore", "Impossibile trovare la scheda da rinominare.")
             return
+
         for script in self.scripts:
             if script.get("tab") == old_name:
                 script["tab"] = new_name
@@ -368,20 +399,24 @@ class App(ctk.CTk):
         self._show_restart_dialog()
 
     def _delete_tab(self):
-        dialog = ctk.CTkInputDialog(text="Quale scheda vuoi eliminare?", title="Elimina Scheda")
-        tab_to_delete = dialog.get_input()
-        if not tab_to_delete or tab_to_delete not in self.user_tab_names:
-            messagebox.showerror("Errore", "Scheda non valida o non trovata.")
-            return
         if len(self.user_tab_names) <= 1:
             messagebox.showerror("Errore", "Non puoi eliminare l'ultima scheda utente.")
             return
+
+        select_dialog = SelectTabDialog(self, self.user_tab_names, "Elimina Scheda", "Seleziona la scheda da eliminare:")
+        self.wait_window(select_dialog)
+        tab_to_delete = select_dialog.result
+
+        if not tab_to_delete: return
+
         if not messagebox.askyesno("Conferma Eliminazione", f"Sei sicuro di voler eliminare la scheda '{tab_to_delete}'?\nGli script associati verranno spostati nella prima scheda disponibile."):
             return
+
         fallback_tab = next(tab for tab in self.user_tab_names if tab != tab_to_delete)
         self.user_tab_names.remove(tab_to_delete)
         self.config["tabs"] = self.user_tab_names
         self.save_config()
+
         for script in self.scripts:
             if script.get("tab") == tab_to_delete:
                 script["tab"] = fallback_tab

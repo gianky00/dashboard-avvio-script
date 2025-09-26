@@ -45,7 +45,7 @@ class ScriptDialog(ctk.CTkToplevel):
         self.group_entry.pack(padx=20, pady=5, fill="x")
         path_frame = ctk.CTkFrame(self)
         path_frame.pack(padx=20, pady=5, fill="x")
-        ctk.CTkLabel(path_frame, text="Percorso Script (.bat):").pack(anchor="w")
+        ctk.CTkLabel(path_frame, text="Percorso Script (.bat, .vbs):").pack(anchor="w")
         self.path_entry = ctk.CTkEntry(path_frame, textvariable=self.path_var)
         self.path_entry.pack(side="left", fill="x", expand=True, padx=(0,5))
         ctk.CTkButton(path_frame, text="Sfoglia", width=80, command=self.browse_bat_file).pack(side="left")
@@ -66,7 +66,7 @@ class ScriptDialog(ctk.CTkToplevel):
         ctk.CTkButton(button_frame, text="Annulla", command=self.destroy).pack(side="left", padx=10)
 
     def browse_bat_file(self):
-        filepath = filedialog.askopenfilename(title="Seleziona un file .bat", filetypes=(("Batch files", "*.bat"), ("All files", "*.*")))
+        filepath = filedialog.askopenfilename(title="Seleziona un file .bat o .vbs", filetypes=(("Script files", "*.bat *.vbs"), ("All files", "*.*")))
         if filepath: self.path_var.set(filepath)
 
     def browse_excel_file(self):

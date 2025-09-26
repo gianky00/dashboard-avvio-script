@@ -1,13 +1,6 @@
 @echo off
 title Dashboard Launcher
 
-echo Installazione delle dipendenze in corso...
-pip install -r requirements.txt
+pip install -r requirements.txt --quiet
 
-echo.
-echo Avvio della dashboard...
 python dashboard.py
-
-echo.
-echo Applicazione chiusa. Premi un tasto per uscire.
-pause

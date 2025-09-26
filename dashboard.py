@@ -3,8 +3,7 @@ import json
 import subprocess
 import os
 import threading
-from tkinter import filedialog
-from tkinter import messagebox
+from tkinter import filedialog, Menu, messagebox
 from datetime import datetime
 import itertools
 import collections
@@ -91,6 +90,9 @@ class App(ctk.CTk):
         self.scripts = self.load_data()
         self.config = self.load_config()
         self.user_tab_names = self.config.get("tabs", ["Schede"])
+
+        self._create_menubar()
+
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=0)
         self.grid_rowconfigure(1, weight=1)
@@ -102,18 +104,16 @@ class App(ctk.CTk):
         search_entry.grid(row=0, column=0, padx=20, pady=(10, 5), sticky="ew")
         self.tab_view = ctk.CTkTabview(self, width=250)
         self.tab_view.grid(row=1, column=0, padx=20, pady=(5, 5), sticky="nsew")
-        self.fixed_tab_names = ["Generale", "Configurazione"]
-        self.tab_names = self.fixed_tab_names + self.user_tab_names
+        self.tab_names = ["Generale"] + self.user_tab_names
         self.scrollable_frames = {}
         for tab_name in self.tab_names:
             tab = self.tab_view.add(tab_name)
-            if tab_name != "Configurazione":
-                tab.grid_columnconfigure(0, weight=1)
-                tab.grid_rowconfigure(0, weight=1)
-                label_text = "Tutti gli Script" if tab_name == "Generale" else f"Script in {tab_name}"
-                scrollable_frame = ctk.CTkScrollableFrame(tab, label_text=label_text)
-                scrollable_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
-                self.scrollable_frames[tab_name] = scrollable_frame
+            tab.grid_columnconfigure(0, weight=1)
+            tab.grid_rowconfigure(0, weight=1)
+            label_text = "Tutti gli Script" if tab_name == "Generale" else f"Script in {tab_name}"
+            scrollable_frame = ctk.CTkScrollableFrame(tab, label_text=label_text)
+            scrollable_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+            self.scrollable_frames[tab_name] = scrollable_frame
         self.add_button = ctk.CTkButton(self, text="Aggiungi Nuovo Script", command=self.add_script)
         self.add_button.grid(row=2, column=0, padx=20, pady=(5, 10), sticky="ew")
         log_frame = ctk.CTkFrame(self)
@@ -124,35 +124,21 @@ class App(ctk.CTk):
         self.log_textbox.configure(state="disabled")
         self.clear_log_button = ctk.CTkButton(log_frame, text="Pulisci Log", command=self.clear_log)
         self.clear_log_button.grid(row=1, column=0, pady=(5, 0), sticky="e")
-        self._setup_config_tab()
         self.refresh_script_list()
 
-    def _setup_config_tab(self):
-        config_tab = self.tab_view.tab("Configurazione")
-        config_tab.grid_columnconfigure(0, weight=1)
-        config_tab.grid_rowconfigure(1, weight=1)
-        add_frame = ctk.CTkFrame(config_tab)
-        add_frame.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
-        add_frame.grid_columnconfigure(0, weight=1)
-        ctk.CTkLabel(add_frame, text="Aggiungi Nuova Scheda:").grid(row=0, column=0, padx=10, pady=(10,0), sticky="w")
-        self.new_tab_entry = ctk.CTkEntry(add_frame, placeholder_text="Nome nuova scheda")
-        self.new_tab_entry.grid(row=1, column=0, padx=10, pady=5, sticky="ew")
-        ctk.CTkButton(add_frame, text="Aggiungi", command=self._add_tab).grid(row=1, column=1, padx=10, pady=5)
-        self.manage_tabs_frame = ctk.CTkScrollableFrame(config_tab, label_text="Gestisci Schede Esistenti")
-        self.manage_tabs_frame.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
-        self.manage_tabs_frame.grid_columnconfigure(0, weight=1)
-        self._refresh_config_tab_list()
+    def _create_menubar(self):
+        menubar = Menu(self)
+        file_menu = Menu(menubar, tearoff=0)
+        file_menu.add_command(label="Esci", command=self.destroy)
+        menubar.add_cascade(label="File", menu=file_menu)
 
-    def _refresh_config_tab_list(self):
-        for widget in self.manage_tabs_frame.winfo_children(): widget.destroy()
-        for i, tab_name in enumerate(self.user_tab_names):
-            tab_entry_frame = ctk.CTkFrame(self.manage_tabs_frame)
-            tab_entry_frame.grid(row=i, column=0, padx=5, pady=5, sticky="ew")
-            tab_entry_frame.grid_columnconfigure(0, weight=1)
-            ctk.CTkLabel(tab_entry_frame, text=tab_name).grid(row=0, column=0, padx=10, pady=5, sticky="w")
-            ctk.CTkButton(tab_entry_frame, text="Rinomina", width=80, command=lambda name=tab_name: self._rename_tab(name)).grid(row=0, column=1, padx=5, pady=5)
-            if len(self.user_tab_names) > 1:
-                ctk.CTkButton(tab_entry_frame, text="Elimina", width=80, fg_color="red", hover_color="darkred", command=lambda name=tab_name: self._delete_tab(name)).grid(row=0, column=2, padx=5, pady=5)
+        config_menu = Menu(menubar, tearoff=0)
+        config_menu.add_command(label="Aggiungi Scheda...", command=self._add_tab)
+        config_menu.add_command(label="Rinomina Scheda...", command=self._rename_tab)
+        config_menu.add_command(label="Elimina Scheda...", command=self._delete_tab)
+        menubar.add_cascade(label="Configurazione", menu=config_menu)
+
+        self.configure(menu=menubar)
 
     def load_data(self):
         if not os.path.exists(self.data_file): return []
@@ -224,15 +210,12 @@ class App(ctk.CTk):
         ctk.CTkLabel(info_frame, text=script["description"], anchor="w").pack(anchor="w")
         last_executed_ts = script.get("last_executed", "N/D")
         ctk.CTkLabel(info_frame, text=f"Ultima Esecuzione: {last_executed_ts}", text_color="gray", font=ctk.CTkFont(size=10)).pack(anchor="w", pady=(5,0))
-
         action_frame = ctk.CTkFrame(entry_frame)
         action_frame.pack(side="right", padx=5, pady=5)
-
         order_frame = ctk.CTkFrame(action_frame)
         order_frame.pack(side="left", padx=5)
         ctk.CTkButton(order_frame, text="▲", width=20, command=lambda i=index: self._move_script(i, -1)).pack()
         ctk.CTkButton(order_frame, text="▼", width=20, command=lambda i=index: self._move_script(i, 1)).pack()
-
         notes = script.get("notes")
         if notes:
             ctk.CTkButton(action_frame, text="Note", width=60, command=lambda n=notes, name=script.get("name"): self._show_notes(name, n)).pack(side="left", padx=5)
@@ -312,9 +295,9 @@ class App(ctk.CTk):
         self.log_textbox.configure(state="disabled")
 
     def _move_script(self, index, direction):
-        if direction == -1 and index > 0: # Move Up
+        if direction == -1 and index > 0:
             self.scripts[index], self.scripts[index - 1] = self.scripts[index - 1], self.scripts[index]
-        elif direction == 1 and index < len(self.scripts) - 1: # Move Down
+        elif direction == 1 and index < len(self.scripts) - 1:
             self.scripts[index], self.scripts[index + 1] = self.scripts[index + 1], self.scripts[index]
         else:
             return
@@ -344,23 +327,26 @@ class App(ctk.CTk):
         self.refresh_script_list()
 
     def _add_tab(self):
-        new_tab_name = self.new_tab_entry.get().strip()
-        if not new_tab_name:
-            messagebox.showerror("Errore", "Il nome della scheda non può essere vuoto.")
-            return
+        dialog = ctk.CTkInputDialog(text="Inserisci il nome della nuova scheda:", title="Aggiungi Scheda")
+        new_tab_name = dialog.get_input()
+        if not new_tab_name or not new_tab_name.strip(): return
+        new_tab_name = new_tab_name.strip()
         if new_tab_name in self.tab_names:
             messagebox.showerror("Errore", f"La scheda '{new_tab_name}' esiste già.")
             return
         self.user_tab_names.append(new_tab_name)
         self.config["tabs"] = self.user_tab_names
         self.save_config()
-        self.new_tab_entry.delete(0, "end")
-        self._refresh_config_tab_list()
         self._show_restart_dialog()
 
-    def _rename_tab(self, old_name):
-        dialog = ctk.CTkInputDialog(text=f"Inserisci il nuovo nome per la scheda '{old_name}':", title="Rinomina Scheda")
-        new_name = dialog.get_input()
+    def _rename_tab(self):
+        dialog = ctk.CTkInputDialog(text="Quale scheda vuoi rinominare?", title="Rinomina Scheda")
+        old_name = dialog.get_input()
+        if not old_name or old_name not in self.user_tab_names:
+            messagebox.showerror("Errore", "Scheda non valida o non trovata.")
+            return
+        new_name_dialog = ctk.CTkInputDialog(text=f"Inserisci il nuovo nome per la scheda '{old_name}':", title="Rinomina Scheda")
+        new_name = new_name_dialog.get_input()
         if not new_name or not new_name.strip(): return
         new_name = new_name.strip()
         if new_name == old_name: return
@@ -379,24 +365,27 @@ class App(ctk.CTk):
             if script.get("tab") == old_name:
                 script["tab"] = new_name
         self.save_data()
-        self._refresh_config_tab_list()
         self._show_restart_dialog()
 
-    def _delete_tab(self, tab_name_to_delete):
+    def _delete_tab(self):
+        dialog = ctk.CTkInputDialog(text="Quale scheda vuoi eliminare?", title="Elimina Scheda")
+        tab_to_delete = dialog.get_input()
+        if not tab_to_delete or tab_to_delete not in self.user_tab_names:
+            messagebox.showerror("Errore", "Scheda non valida o non trovata.")
+            return
         if len(self.user_tab_names) <= 1:
             messagebox.showerror("Errore", "Non puoi eliminare l'ultima scheda utente.")
             return
-        if not messagebox.askyesno("Conferma Eliminazione", f"Sei sicuro di voler eliminare la scheda '{tab_name_to_delete}'?\nGli script associati verranno spostati nella prima scheda disponibile."):
+        if not messagebox.askyesno("Conferma Eliminazione", f"Sei sicuro di voler eliminare la scheda '{tab_to_delete}'?\nGli script associati verranno spostati nella prima scheda disponibile."):
             return
-        fallback_tab = next(tab for tab in self.user_tab_names if tab != tab_name_to_delete)
-        self.user_tab_names.remove(tab_name_to_delete)
+        fallback_tab = next(tab for tab in self.user_tab_names if tab != tab_to_delete)
+        self.user_tab_names.remove(tab_to_delete)
         self.config["tabs"] = self.user_tab_names
         self.save_config()
         for script in self.scripts:
-            if script.get("tab") == tab_name_to_delete:
+            if script.get("tab") == tab_to_delete:
                 script["tab"] = fallback_tab
         self.save_data()
-        self._refresh_config_tab_list()
         self._show_restart_dialog()
 
 if __name__ == "__main__":

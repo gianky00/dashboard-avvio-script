@@ -109,7 +109,7 @@ class App(ctk.CTk):
         super().__init__()
         self.title("Dashboard di Avvio Script")
         self.geometry("700x500")
-        self.attributes("-fullscreen", True)
+        self.state('zoomed')
         ctk.set_appearance_mode("System")
         ctk.set_default_color_theme("blue")
         self.data_file = "data.json"

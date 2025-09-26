@@ -2,6 +2,7 @@ import customtkinter as ctk
 import json
 import subprocess
 import os
+import threading
 from tkinter import filedialog
 
 class ScriptDialog(ctk.CTkToplevel):
@@ -107,7 +108,8 @@ class App(ctk.CTk):
         # Layout principale
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)  # Riga per la tab view (espandibile)
-        self.grid_rowconfigure(1, weight=0)  # Riga per il pulsante (fissa)
+        self.grid_rowconfigure(1, weight=0)  # Riga per il pulsante Add (fissa)
+        self.grid_rowconfigure(2, weight=0)  # Riga per i log (fissa)
 
         # --- Interfaccia a Schede ---
         self.tab_view = ctk.CTkTabview(self, width=250)
@@ -129,6 +131,18 @@ class App(ctk.CTk):
         # Pulsante per aggiungere nuovi script
         self.add_button = ctk.CTkButton(self, text="Aggiungi Nuovo Script", command=self.add_script)
         self.add_button.grid(row=1, column=0, padx=20, pady=(5, 10), sticky="ew")
+
+        # --- Area Log ---
+        log_frame = ctk.CTkFrame(self)
+        log_frame.grid(row=2, column=0, padx=20, pady=(5, 10), sticky="nsew")
+        log_frame.grid_columnconfigure(0, weight=1)
+
+        self.log_textbox = ctk.CTkTextbox(log_frame, height=150, activate_scrollbars=True)
+        self.log_textbox.grid(row=0, column=0, sticky="nsew")
+        self.log_textbox.configure(state="disabled") # Rendila non modificabile dall'utente
+
+        self.clear_log_button = ctk.CTkButton(log_frame, text="Pulisci Log", command=self.clear_log)
+        self.clear_log_button.grid(row=1, column=0, pady=(5, 0), sticky="e")
 
         self.refresh_script_list()
 
@@ -192,15 +206,46 @@ class App(ctk.CTk):
         ctk.CTkButton(action_frame, text="Modifica", width=80, command=lambda i=index: self.edit_script(i)).pack(side="left", padx=5)
         ctk.CTkButton(action_frame, text="Elimina", width=80, fg_color="red", hover_color="darkred", command=lambda i=index: self.delete_script(i)).pack(side="left", padx=5)
 
+    def _append_log_message(self, message):
+        """METODO PRIVATO: Aggiunge un messaggio alla textbox dei log. DEVE essere chiamato dal thread principale."""
+        self.log_textbox.configure(state="normal")
+        self.log_textbox.insert("end", message)
+        self.log_textbox.see("end")
+        self.log_textbox.configure(state="disabled")
+
+    def _read_process_output(self, process, script_name):
+        """Legge l'output di un processo e programma l'aggiornamento della GUI."""
+        self.after(0, self._append_log_message, f"--- Avvio del processo: {script_name} ---\n")
+        for line in iter(process.stdout.readline, ''):
+            self.after(0, self._append_log_message, line)
+        process.stdout.close()
+        return_code = process.wait()
+        self.after(0, self._append_log_message, f"\n--- Processo '{script_name}' terminato con codice d'uscita: {return_code} ---\n")
+
     def launch_script(self, path):
-        if os.path.exists(path):
-            try:
-                # Esegue lo script in una nuova finestra di terminale
-                subprocess.Popen(f'cmd /c start "{os.path.basename(path)}" "{path}"', shell=True)
-            except Exception as e:
-                print(f"Errore durante l'avvio dello script: {e}")
-        else:
-            print(f"Percorso non trovato: {path}")
+        """Lancia uno script e cattura il suo output in un thread separato."""
+        if not os.path.exists(path):
+            self._append_log_message(f"Errore: Percorso non trovato: {path}\n")
+            return
+
+        try:
+            process = subprocess.Popen(
+                ['cmd', '/c', path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
+
+            script_name = os.path.basename(path)
+            thread = threading.Thread(target=self._read_process_output, args=(process, script_name))
+            thread.daemon = True
+            thread.start()
+
+        except Exception as e:
+            self._append_log_message(f"Errore durante l'avvio dello script: {e}\n")
 
     def open_excel(self, path):
         if os.path.exists(path):
@@ -241,6 +286,11 @@ class App(ctk.CTk):
         self.scripts.pop(index)
         self.save_data()
         self.refresh_script_list()
+
+    def clear_log(self):
+        self.log_textbox.configure(state="normal")
+        self.log_textbox.delete("1.0", "end")
+        self.log_textbox.configure(state="disabled")
 
 if __name__ == "__main__":
     app = App()

@@ -2,29 +2,33 @@ import customtkinter as ctk
 import json
 import subprocess
 import os
+import threading
 from tkinter import filedialog
 
 class ScriptDialog(ctk.CTkToplevel):
     """
     Finestra di dialogo per aggiungere o modificare una configurazione di script.
     """
-    def __init__(self, parent, title="Aggiungi Script", script_data=None):
+    def __init__(self, parent, tab_names, title="Aggiungi Script", script_data=None):
         super().__init__(parent)
         self.title(title)
-        self.geometry("400x400")  # Aumentata l'altezza per il nuovo campo
-        self.transient(parent)  # Mantiene la finestra in primo piano
+        self.geometry("400x450")  # Aumentata l'altezza per il nuovo campo
+        self.transient(parent)
         self.result = None
 
+        # Inizializzazione delle variabili
+        self.name_var = ctk.StringVar()
+        self.desc_var = ctk.StringVar()
+        self.path_var = ctk.StringVar()
+        self.excel_path_var = ctk.StringVar()
+        self.tab_var = ctk.StringVar(value=tab_names[0])  # Default alla prima scheda
+
         if script_data:
-            self.name_var = ctk.StringVar(value=script_data.get("name", ""))
-            self.desc_var = ctk.StringVar(value=script_data.get("description", ""))
-            self.path_var = ctk.StringVar(value=script_data.get("path", ""))
-            self.excel_path_var = ctk.StringVar(value=script_data.get("excel_path", ""))
-        else:
-            self.name_var = ctk.StringVar()
-            self.desc_var = ctk.StringVar()
-            self.path_var = ctk.StringVar()
-            self.excel_path_var = ctk.StringVar()
+            self.name_var.set(script_data.get("name", ""))
+            self.desc_var.set(script_data.get("description", ""))
+            self.path_var.set(script_data.get("path", ""))
+            self.excel_path_var.set(script_data.get("excel_path", ""))
+            self.tab_var.set(script_data.get("tab", tab_names[0]))
 
         # Creazione dei widget
         ctk.CTkLabel(self, text="Nome:").pack(pady=(10, 0))
@@ -34,6 +38,10 @@ class ScriptDialog(ctk.CTkToplevel):
         ctk.CTkLabel(self, text="Descrizione:").pack(pady=(10, 0))
         self.desc_entry = ctk.CTkEntry(self, textvariable=self.desc_var, width=300)
         self.desc_entry.pack(pady=5)
+
+        ctk.CTkLabel(self, text="Assegna a Scheda:").pack(pady=(10, 0))
+        self.tab_menu = ctk.CTkOptionMenu(self, variable=self.tab_var, values=tab_names, width=300)
+        self.tab_menu.pack(pady=5)
 
         ctk.CTkLabel(self, text="Percorso Script (.bat):").pack(pady=(10, 0))
         path_frame = ctk.CTkFrame(self)
@@ -76,7 +84,8 @@ class ScriptDialog(ctk.CTkToplevel):
             "name": self.name_var.get(),
             "description": self.desc_var.get(),
             "path": self.path_var.get(),
-            "excel_path": self.excel_path_var.get()
+            "excel_path": self.excel_path_var.get(),
+            "tab": self.tab_var.get()
         }
         self.destroy()
 
@@ -89,7 +98,7 @@ class App(ctk.CTk):
 
         self.title("Dashboard di Avvio Script")
         self.geometry("700x500")
-        self.attributes('-fullscreen', True)  # Avvia a schermo intero
+        self.state('zoomed')  # Avvia massimizzato
         ctk.set_appearance_mode("System")  # o "Dark", "Light"
         ctk.set_default_color_theme("blue")
 
@@ -98,37 +107,42 @@ class App(ctk.CTk):
 
         # Layout principale
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1)  # Riga per la tab view (espandibile)
+        self.grid_rowconfigure(1, weight=0)  # Riga per il pulsante Add (fissa)
+        self.grid_rowconfigure(2, weight=0)  # Riga per i log (fissa)
 
         # --- Interfaccia a Schede ---
         self.tab_view = ctk.CTkTabview(self, width=250)
-        self.tab_view.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
+        self.tab_view.grid(row=0, column=0, padx=20, pady=(20, 5), sticky="nsew")
 
-        self.tab_view.add("Schede")
-        self.tab_view.add("Contabilità")
-        self.tab_view.add("Programmazione")
-        self.tab_view.add("Report Giornaliere")
+        self.tab_names = ["Generale", "Schede", "Contabilità", "Programmazione", "Report Giornaliere"]
+        self.scrollable_frames = {}
 
-        # --- Contenuto della scheda "Schede" ---
-        schede_tab = self.tab_view.tab("Schede")
-        schede_tab.grid_columnconfigure(0, weight=1)
-        schede_tab.grid_rowconfigure(0, weight=1)
+        for tab_name in self.tab_names:
+            tab = self.tab_view.add(tab_name)
+            tab.grid_columnconfigure(0, weight=1)
+            tab.grid_rowconfigure(0, weight=1)
 
-        self.scrollable_frame = ctk.CTkScrollableFrame(schede_tab, label_text="Script Disponibili")
-        self.scrollable_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+            label = "Tutti gli Script" if tab_name == "Generale" else f"Script in {tab_name}"
+            scrollable_frame = ctk.CTkScrollableFrame(tab, label_text=label)
+            scrollable_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+            self.scrollable_frames[tab_name] = scrollable_frame
 
-        self.add_button = ctk.CTkButton(schede_tab, text="Aggiungi Script", command=self.add_script)
-        self.add_button.grid(row=1, column=0, padx=10, pady=10, sticky="ew")
+        # Pulsante per aggiungere nuovi script
+        self.add_button = ctk.CTkButton(self, text="Aggiungi Nuovo Script", command=self.add_script)
+        self.add_button.grid(row=1, column=0, padx=20, pady=(5, 10), sticky="ew")
 
-        # --- Contenuto delle altre schede (segnaposto) ---
-        contabilita_tab = self.tab_view.tab("Contabilità")
-        ctk.CTkLabel(contabilita_tab, text="Contenuto della sezione Contabilità.").pack(padx=20, pady=20)
+        # --- Area Log ---
+        log_frame = ctk.CTkFrame(self)
+        log_frame.grid(row=2, column=0, padx=20, pady=(5, 10), sticky="nsew")
+        log_frame.grid_columnconfigure(0, weight=1)
 
-        programmazione_tab = self.tab_view.tab("Programmazione")
-        ctk.CTkLabel(programmazione_tab, text="Contenuto della sezione Programmazione.").pack(padx=20, pady=20)
+        self.log_textbox = ctk.CTkTextbox(log_frame, height=150, activate_scrollbars=True)
+        self.log_textbox.grid(row=0, column=0, sticky="nsew")
+        self.log_textbox.configure(state="disabled") # Rendila non modificabile dall'utente
 
-        report_tab = self.tab_view.tab("Report Giornaliere")
-        ctk.CTkLabel(report_tab, text="Contenuto della sezione Report Giornaliere.").pack(padx=20, pady=20)
+        self.clear_log_button = ctk.CTkButton(log_frame, text="Pulisci Log", command=self.clear_log)
+        self.clear_log_button.grid(row=1, column=0, pady=(5, 0), sticky="e")
 
         self.refresh_script_list()
 
@@ -146,16 +160,28 @@ class App(ctk.CTk):
             json.dump(self.scripts, f, indent=4)
 
     def refresh_script_list(self):
-        # Pulisce il frame prima di aggiornare
-        for widget in self.scrollable_frame.winfo_children():
-            widget.destroy()
+        # Pulisce tutti i frame scorrevoli prima di aggiornare
+        for frame in self.scrollable_frames.values():
+            for widget in frame.winfo_children():
+                widget.destroy()
 
-        # Aggiunge una riga per ogni script
+        # Aggiunge una riga per ogni script nella scheda corretta e in "Generale"
         for i, script in enumerate(self.scripts):
-            self.create_script_entry(i, script)
+            # Gestisce la retrocompatibilità per gli script senza una scheda assegnata
+            target_tab_name = script.get("tab", "Schede")
 
-    def create_script_entry(self, index, script):
-        entry_frame = ctk.CTkFrame(self.scrollable_frame)
+            # Aggiunge lo script alla sua scheda specifica
+            if target_tab_name in self.scrollable_frames:
+                parent_frame = self.scrollable_frames[target_tab_name]
+                self.create_script_entry(parent_frame, i, script)
+
+            # Aggiunge lo script anche alla scheda "Generale", ma solo se non è già la sua scheda di destinazione
+            if target_tab_name != "Generale":
+                generale_frame = self.scrollable_frames["Generale"]
+                self.create_script_entry(generale_frame, i, script)
+
+    def create_script_entry(self, parent_frame, index, script):
+        entry_frame = ctk.CTkFrame(parent_frame)
         entry_frame.pack(fill="x", expand=True, padx=10, pady=5)
 
         info_frame = ctk.CTkFrame(entry_frame)
@@ -180,15 +206,46 @@ class App(ctk.CTk):
         ctk.CTkButton(action_frame, text="Modifica", width=80, command=lambda i=index: self.edit_script(i)).pack(side="left", padx=5)
         ctk.CTkButton(action_frame, text="Elimina", width=80, fg_color="red", hover_color="darkred", command=lambda i=index: self.delete_script(i)).pack(side="left", padx=5)
 
+    def _append_log_message(self, message):
+        """METODO PRIVATO: Aggiunge un messaggio alla textbox dei log. DEVE essere chiamato dal thread principale."""
+        self.log_textbox.configure(state="normal")
+        self.log_textbox.insert("end", message)
+        self.log_textbox.see("end")
+        self.log_textbox.configure(state="disabled")
+
+    def _read_process_output(self, process, script_name):
+        """Legge l'output di un processo e programma l'aggiornamento della GUI."""
+        self.after(0, self._append_log_message, f"--- Avvio del processo: {script_name} ---\n")
+        for line in iter(process.stdout.readline, ''):
+            self.after(0, self._append_log_message, line)
+        process.stdout.close()
+        return_code = process.wait()
+        self.after(0, self._append_log_message, f"\n--- Processo '{script_name}' terminato con codice d'uscita: {return_code} ---\n")
+
     def launch_script(self, path):
-        if os.path.exists(path):
-            try:
-                # Esegue lo script in una nuova finestra di terminale
-                subprocess.Popen(f'cmd /c start "{os.path.basename(path)}" "{path}"', shell=True)
-            except Exception as e:
-                print(f"Errore durante l'avvio dello script: {e}")
-        else:
-            print(f"Percorso non trovato: {path}")
+        """Lancia uno script e cattura il suo output in un thread separato."""
+        if not os.path.exists(path):
+            self._append_log_message(f"Errore: Percorso non trovato: {path}\n")
+            return
+
+        try:
+            process = subprocess.Popen(
+                ['cmd', '/c', path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
+
+            script_name = os.path.basename(path)
+            thread = threading.Thread(target=self._read_process_output, args=(process, script_name))
+            thread.daemon = True
+            thread.start()
+
+        except Exception as e:
+            self._append_log_message(f"Errore durante l'avvio dello script: {e}\n")
 
     def open_excel(self, path):
         if os.path.exists(path):
@@ -201,7 +258,9 @@ class App(ctk.CTk):
             print(f"Percorso non trovato: {path}")
 
     def add_script(self):
-        dialog = ScriptDialog(self, title="Aggiungi Nuovo Script")
+        # Passa i nomi delle schede (escludendo "Generale") alla finestra di dialogo
+        assignable_tabs = [name for name in self.tab_names if name != "Generale"]
+        dialog = ScriptDialog(self, tab_names=assignable_tabs, title="Aggiungi Nuovo Script")
         self.wait_window(dialog)
 
         if dialog.result:
@@ -213,7 +272,8 @@ class App(ctk.CTk):
 
     def edit_script(self, index):
         script_to_edit = self.scripts[index]
-        dialog = ScriptDialog(self, title="Modifica Script", script_data=script_to_edit)
+        assignable_tabs = [name for name in self.tab_names if name != "Generale"]
+        dialog = ScriptDialog(self, tab_names=assignable_tabs, title="Modifica Script", script_data=script_to_edit)
         self.wait_window(dialog)
 
         if dialog.result:
@@ -226,6 +286,11 @@ class App(ctk.CTk):
         self.scripts.pop(index)
         self.save_data()
         self.refresh_script_list()
+
+    def clear_log(self):
+        self.log_textbox.configure(state="normal")
+        self.log_textbox.delete("1.0", "end")
+        self.log_textbox.configure(state="disabled")
 
 if __name__ == "__main__":
     app = App()

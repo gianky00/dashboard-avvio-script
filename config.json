@@ -1,9 +1,10 @@
 {
-  "tabs": [
-    "Schede",
-    "Contabilità",
-    "Programmazione",
-    "Report Giornaliere",
-    "Strumenti Campione"
-  ]
+    "tabs": [
+        "Schede",
+        "Contabilità",
+        "Programmazione",
+        "Report Giornaliere",
+        "Strumenti Campione",
+        "Ufficio"
+    ]
 }

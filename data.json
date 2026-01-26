@@ -1,1 +1,132 @@
-[]
+[
+    {
+        "name": "scadenze strumenti taratura",
+        "description": "",
+        "path": "C:/Users/Coemi/Desktop/collegamenti percorsi script/avvio_codice_analizzatore_schede_refactoring.bat",
+        "excel_path": "",
+        "tab": "Strumenti Campione",
+        "notes": "",
+        "group": "",
+        "last_executed": "2025-10-02 18:06:08",
+        "order": 0
+    },
+    {
+        "name": "controllo canoni",
+        "description": "",
+        "path": "C:\\Users\\Coemi\\Desktop\\collegamenti percorsi script\\controllo_canoni.bat",
+        "excel_path": "C:/Users/Coemi/Desktop/SCRIPT/portale fornitori/scaricaTS/parametriScaricoTS.xlsm",
+        "tab": "Contabilità",
+        "notes": "",
+        "group": "",
+        "last_executed": "2025-12-04 10:38:24",
+        "order": 1
+    },
+    {
+        "name": "programmazione attuale STRUMENTALE",
+        "description": "",
+        "path": "C:/Users/Coemi/Desktop/collegamenti percorsi script/programmazione_attuale_caldarella.bat",
+        "excel_path": "",
+        "tab": "Programmazione",
+        "notes": "",
+        "group": "STRUMENTALE",
+        "order": 2,
+        "last_executed": "2026-01-26 16:12:29"
+    },
+    {
+        "name": "rileva PdL aperti STRUMENTALE",
+        "description": "",
+        "path": "C:/Users/Coemi/Desktop/collegamenti percorsi script/rileva_pdl_aperti.bat",
+        "excel_path": "",
+        "tab": "Programmazione",
+        "notes": "",
+        "group": "STRUMENTALE",
+        "order": 3,
+        "last_executed": "2026-01-24 12:32:21"
+    },
+    {
+        "name": "prenotazione pdl STRUMENTALE",
+        "description": "",
+        "path": "C:/Users/Coemi/Desktop/collegamenti percorsi script/prenotazione_pdl.bat",
+        "excel_path": "",
+        "tab": "Programmazione",
+        "notes": "",
+        "group": "STRUMENTALE",
+        "order": 4
+    },
+    {
+        "name": "avvio report giornaliere",
+        "description": "",
+        "path": "C:/Users/Coemi/Desktop/SCRIPT/report-attivita-app/avvio_completo.bat",
+        "excel_path": "",
+        "tab": "Report Giornaliere",
+        "notes": "",
+        "group": "",
+        "order": 5,
+        "last_executed": "2025-09-29 08:09:23"
+    },
+    {
+        "name": "programmazione attuale ANALISI",
+        "description": "",
+        "path": "C:/Users/Coemi/Desktop/collegamenti percorsi script/programmazione_attuale_ANALISI.bat",
+        "excel_path": "",
+        "tab": "Programmazione",
+        "notes": "",
+        "group": "ANALISI",
+        "order": 6,
+        "last_executed": "2026-01-24 07:03:14"
+    },
+    {
+        "name": "rileva PdL aperti ANALISI",
+        "description": "",
+        "path": "C:/Users/Coemi/Desktop/collegamenti percorsi script/rileva_pdl_aperti_ANALISI.bat",
+        "excel_path": "",
+        "tab": "Programmazione",
+        "notes": "",
+        "group": "ANALISI",
+        "order": 7,
+        "last_executed": "2026-01-21 14:38:42"
+    },
+    {
+        "name": "prenotazione PdL ANALISI",
+        "description": "",
+        "path": "C:/Users/Coemi/Desktop/collegamenti percorsi script/prenotazione_pdl_ANALISI.bat",
+        "excel_path": "",
+        "tab": "Programmazione",
+        "notes": "",
+        "group": "ANALISI",
+        "order": 8
+    },
+    {
+        "name": "programmazione prossima ANALISI",
+        "description": "",
+        "path": "C:/Users/Coemi/Desktop/collegamenti percorsi script/programmazione_prossima_ANALISI.bat",
+        "excel_path": "",
+        "tab": "Programmazione",
+        "notes": "",
+        "group": "ANALISI",
+        "order": 9,
+        "last_executed": "2025-10-08 17:42:26"
+    },
+    {
+        "name": "programmazione prossima STRUMENTALE",
+        "description": "",
+        "path": "C:/Users/Coemi/Desktop/collegamenti percorsi script/programmazione_prossima.bat",
+        "excel_path": "",
+        "tab": "Schede",
+        "notes": "",
+        "group": "STRUMENTALE",
+        "order": 10,
+        "last_executed": "2025-11-29 11:20:56"
+    },
+    {
+        "name": "MAGO",
+        "description": "",
+        "path": "C:/Users/Coemi/Desktop/SCRIPT/mago/avvio.bat",
+        "excel_path": "",
+        "tab": "Ufficio",
+        "notes": "",
+        "group": "",
+        "order": 11,
+        "last_executed": "2025-10-23 15:26:00"
+    }
+]

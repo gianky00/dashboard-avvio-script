@@ -3,101 +3,166 @@ import json
 import subprocess
 import os
 import threading
+import locale
+import shutil
+import tempfile
 from tkinter import filedialog, Menu, messagebox
 from datetime import datetime
 import itertools
 import collections
 
+# --- COSTANTI E CONFIGURAZIONE ---
+APP_NAME = "Dashboard Avvio Script"
+DATA_FILE = "data.json"
+CONFIG_FILE = "config.json"
+DEFAULT_TABS = ["Schede", "Contabilità", "Programmazione", "Report Giornaliere", "Strumenti Campione"]
+VERSION = "1.1.0"
+
 class ScriptDialog(ctk.CTkToplevel):
+    """Dialogo per aggiungere o modificare uno script."""
     def __init__(self, parent, tab_names, title="Aggiungi Script", script_data=None):
         super().__init__(parent)
         self.title(title)
-        self.geometry("500x650")
+        self.geometry("500x700")
         self.transient(parent)
+        self.resizable(False, False)
         self.result = None
 
-        self.name_var = ctk.StringVar()
-        self.desc_var = ctk.StringVar()
-        self.path_var = ctk.StringVar()
-        self.excel_path_var = ctk.StringVar()
-        self.tab_var = ctk.StringVar(value=tab_names[0] if tab_names else "")
-        self.group_var = ctk.StringVar()
+        # Variabili
+        self.name_var = ctk.StringVar(value=script_data.get("name", "") if script_data else "")
+        self.desc_var = ctk.StringVar(value=script_data.get("description", "") if script_data else "")
+        self.path_var = ctk.StringVar(value=script_data.get("path", "") if script_data else "")
+        self.excel_path_var = ctk.StringVar(value=script_data.get("excel_path", "") if script_data else "")
+        
+        default_tab = tab_names[0] if tab_names else ""
+        current_tab = script_data.get("tab", default_tab) if script_data else default_tab
+        if current_tab not in tab_names:
+            current_tab = default_tab
+            
+        self.tab_var = ctk.StringVar(value=current_tab)
+        self.group_var = ctk.StringVar(value=script_data.get("group", "") if script_data else "")
 
-        if script_data:
-            self.name_var.set(script_data.get("name", ""))
-            self.desc_var.set(script_data.get("description", ""))
-            self.path_var.set(script_data.get("path", ""))
-            self.excel_path_var.set(script_data.get("excel_path", ""))
-            self.tab_var.set(script_data.get("tab", tab_names[0] if tab_names else ""))
-            self.group_var.set(script_data.get("group", ""))
+        # Layout UI
+        self._build_ui(tab_names, script_data)
+        
+        # Focus iniziale
+        self.after(100, lambda: self.name_entry.focus())
 
-        ctk.CTkLabel(self, text="Nome:").pack(padx=20, pady=(10, 0), anchor="w")
+    def _build_ui(self, tab_names, script_data):
+        # Nome
+        ctk.CTkLabel(self, text="Nome Script:", font=("Arial", 12, "bold")).pack(padx=20, pady=(15, 0), anchor="w")
         self.name_entry = ctk.CTkEntry(self, textvariable=self.name_var)
         self.name_entry.pack(padx=20, pady=5, fill="x")
+
+        # Descrizione
         ctk.CTkLabel(self, text="Descrizione:").pack(padx=20, pady=(10, 0), anchor="w")
         self.desc_entry = ctk.CTkEntry(self, textvariable=self.desc_var)
         self.desc_entry.pack(padx=20, pady=5, fill="x")
-        ctk.CTkLabel(self, text="Assegna a Scheda:").pack(padx=20, pady=(10, 0), anchor="w")
-        self.tab_menu = ctk.CTkOptionMenu(self, variable=self.tab_var, values=tab_names)
-        self.tab_menu.pack(padx=20, pady=5, fill="x")
-        ctk.CTkLabel(self, text="Nome Gruppo (Opzionale):").pack(padx=20, pady=(10, 0), anchor="w")
-        self.group_entry = ctk.CTkEntry(self, textvariable=self.group_var)
-        self.group_entry.pack(padx=20, pady=5, fill="x")
+
+        # Scheda e Gruppo
+        row_frame = ctk.CTkFrame(self, fg_color="transparent")
+        row_frame.pack(padx=20, pady=5, fill="x")
+        
+        # Scheda
+        tab_frame = ctk.CTkFrame(row_frame, fg_color="transparent")
+        tab_frame.pack(side="left", fill="x", expand=True, padx=(0, 5))
+        ctk.CTkLabel(tab_frame, text="Scheda:").pack(anchor="w")
+        self.tab_menu = ctk.CTkOptionMenu(tab_frame, variable=self.tab_var, values=tab_names)
+        self.tab_menu.pack(fill="x")
+
+        # Gruppo
+        group_frame = ctk.CTkFrame(row_frame, fg_color="transparent")
+        group_frame.pack(side="right", fill="x", expand=True, padx=(5, 0))
+        ctk.CTkLabel(group_frame, text="Gruppo (Opz.):").pack(anchor="w")
+        self.group_entry = ctk.CTkEntry(group_frame, textvariable=self.group_var)
+        self.group_entry.pack(fill="x")
+
+        # Percorso Script
+        ctk.CTkLabel(self, text="Percorso Script (.bat, .vbs, .cmd):", font=("Arial", 12, "bold")).pack(padx=20, pady=(15, 0), anchor="w")
         path_frame = ctk.CTkFrame(self)
         path_frame.pack(padx=20, pady=5, fill="x")
-        ctk.CTkLabel(path_frame, text="Percorso Script (.bat, .vbs):").pack(anchor="w")
         self.path_entry = ctk.CTkEntry(path_frame, textvariable=self.path_var)
-        self.path_entry.pack(side="left", fill="x", expand=True, padx=(0,5))
-        ctk.CTkButton(path_frame, text="Sfoglia", width=80, command=self.browse_bat_file).pack(side="left")
-        excel_path_frame = ctk.CTkFrame(self)
-        excel_path_frame.pack(padx=20, pady=5, fill="x")
-        ctk.CTkLabel(excel_path_frame, text="Percorso File Excel (Opzionale):").pack(anchor="w")
-        self.excel_path_entry = ctk.CTkEntry(excel_path_frame, textvariable=self.excel_path_var)
-        self.excel_path_entry.pack(side="left", fill="x", expand=True, padx=(0,5))
-        ctk.CTkButton(excel_path_frame, text="Sfoglia", width=80, command=self.browse_excel_file).pack(side="left")
-        ctk.CTkLabel(self, text="Note Dettagliate:").pack(padx=20, pady=(10, 0), anchor="w")
+        self.path_entry.pack(side="left", fill="x", expand=True, padx=(5, 5), pady=5)
+        ctk.CTkButton(path_frame, text="...", width=40, command=self.browse_bat_file).pack(side="right", padx=(0, 5), pady=5)
+
+        # Percorso Excel
+        ctk.CTkLabel(self, text="Percorso File Excel (Opzionale):").pack(padx=20, pady=(10, 0), anchor="w")
+        excel_frame = ctk.CTkFrame(self)
+        excel_frame.pack(padx=20, pady=5, fill="x")
+        self.excel_path_entry = ctk.CTkEntry(excel_frame, textvariable=self.excel_path_var)
+        self.excel_path_entry.pack(side="left", fill="x", expand=True, padx=(5, 5), pady=5)
+        ctk.CTkButton(excel_frame, text="...", width=40, command=self.browse_excel_file).pack(side="right", padx=(0, 5), pady=5)
+
+        # Note
+        ctk.CTkLabel(self, text="Note / Istruzioni:").pack(padx=20, pady=(10, 0), anchor="w")
         self.notes_textbox = ctk.CTkTextbox(self, height=100)
         self.notes_textbox.pack(padx=20, pady=5, fill="both", expand=True)
         if script_data and script_data.get("notes"):
             self.notes_textbox.insert("1.0", script_data.get("notes"))
-        button_frame = ctk.CTkFrame(self)
-        button_frame.pack(pady=20)
-        ctk.CTkButton(button_frame, text="Salva", command=self.on_save).pack(side="left", padx=10)
-        ctk.CTkButton(button_frame, text="Annulla", command=self.destroy).pack(side="left", padx=10)
+
+        # Bottoni
+        button_frame = ctk.CTkFrame(self, fg_color="transparent")
+        button_frame.pack(pady=20, fill="x")
+        ctk.CTkButton(button_frame, text="Salva", command=self.on_save, fg_color="green", hover_color="darkgreen").pack(side="right", padx=20)
+        ctk.CTkButton(button_frame, text="Annulla", command=self.destroy, fg_color="gray", hover_color="gray30").pack(side="right", padx=(0, 10))
 
     def browse_bat_file(self):
-        filepath = filedialog.askopenfilename(title="Seleziona un file .bat o .vbs", filetypes=(("Script files", "*.bat *.vbs"), ("All files", "*.*")))
-        if filepath: self.path_var.set(filepath)
+        filepath = filedialog.askopenfilename(
+            title="Seleziona Script",
+            filetypes=(("Script", "*.bat *.vbs *.cmd *.ps1 *.py"), ("Tutti i file", "*.*"))
+        )
+        if filepath: self.path_var.set(os.path.normpath(filepath))
 
     def browse_excel_file(self):
-        filepath = filedialog.askopenfilename(title="Seleziona un file Excel", filetypes=(("Excel files", "*.xlsx *.xls"), ("All files", "*.*")))
-        if filepath: self.excel_path_var.set(filepath)
+        filepath = filedialog.askopenfilename(
+            title="Seleziona Excel",
+            filetypes=(("Excel", "*.xlsx *.xls *.xlsm *.csv"), ("Tutti i file", "*.*"))
+        )
+        if filepath: self.excel_path_var.set(os.path.normpath(filepath))
 
     def on_save(self):
-        self.result = {"name": self.name_var.get(), "description": self.desc_var.get(), "path": self.path_var.get(), "excel_path": self.excel_path_var.get(), "tab": self.tab_var.get(), "notes": self.notes_textbox.get("1.0", "end-1c"), "group": self.group_var.get().strip()}
+        name = self.name_var.get().strip()
+        path = self.path_var.get().strip()
+        
+        if not name:
+            messagebox.showwarning("Dati Mancanti", "Il nome dello script è obbligatorio.")
+            self.name_entry.focus()
+            return
+        if not path:
+            messagebox.showwarning("Dati Mancanti", "Il percorso dello script è obbligatorio.")
+            self.path_entry.focus()
+            return
+            
+        self.result = {
+            "name": name,
+            "description": self.desc_var.get().strip(),
+            "path": path,
+            "excel_path": self.excel_path_var.get().strip(),
+            "tab": self.tab_var.get(),
+            "notes": self.notes_textbox.get("1.0", "end-1c").strip(),
+            "group": self.group_var.get().strip()
+        }
         self.destroy()
 
 class SelectTabDialog(ctk.CTkToplevel):
-    """Finestra di dialogo per selezionare una scheda da un elenco."""
+    """Dialogo generico per selezione tab."""
     def __init__(self, parent, tab_names, title, prompt):
         super().__init__(parent)
         self.title(title)
-        self.geometry("350x150")
+        self.geometry("400x180")
         self.transient(parent)
+        self.resizable(False, False)
         self.result = None
 
-        self.label = ctk.CTkLabel(self, text=prompt)
-        self.label.pack(padx=20, pady=10)
-
-        self.tab_var = ctk.StringVar(value=tab_names[0])
-        self.tab_menu = ctk.CTkOptionMenu(self, variable=self.tab_var, values=tab_names, width=300)
+        ctk.CTkLabel(self, text=prompt, wraplength=350).pack(padx=20, pady=20)
+        self.tab_var = ctk.StringVar(value=tab_names[0] if tab_names else "")
+        self.tab_menu = ctk.CTkOptionMenu(self, variable=self.tab_var, values=tab_names, width=250)
         self.tab_menu.pack(padx=20, pady=5)
 
-        button_frame = ctk.CTkFrame(self)
-        button_frame.pack(pady=15)
-        ctk.CTkButton(button_frame, text="OK", command=self.on_ok).pack(side="left", padx=10)
-        ctk.CTkButton(button_frame, text="Annulla", command=self.destroy).pack(side="left", padx=10)
-
+        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+        btn_frame.pack(pady=20)
+        ctk.CTkButton(btn_frame, text="Conferma", command=self.on_ok).pack(side="left", padx=10)
+        ctk.CTkButton(btn_frame, text="Annulla", command=self.destroy, fg_color="gray").pack(side="left", padx=10)
         self.grab_set()
 
     def on_ok(self):
@@ -107,321 +172,482 @@ class SelectTabDialog(ctk.CTkToplevel):
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Dashboard di Avvio Script")
-        self.geometry("700x500")
-        self.state('zoomed')
+        self.title(f"{APP_NAME} v{VERSION}")
+        self.geometry("900x650")
+        self.minsize(800, 600)
+        
+        # Tema
         ctk.set_appearance_mode("System")
         ctk.set_default_color_theme("blue")
-        self.data_file = "data.json"
-        self.config_file = "config.json"
-        self.scripts = self.load_data()
-        self.config = self.load_config()
-        self.user_tab_names = self.config.get("tabs", ["Schede"])
 
+        # Dati
+        self.scripts = []
+        self.config = {}
+        self.user_tab_names = []
+        
+        self.load_configuration_and_data()
+        self._setup_ui()
         self._create_menubar()
-
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=0)
-        self.grid_rowconfigure(1, weight=1)
-        self.grid_rowconfigure(2, weight=0)
-        self.grid_rowconfigure(3, weight=0)
-        self.search_var = ctk.StringVar()
-        self.search_var.trace_add("write", lambda name, index, mode: self._on_search())
-        search_entry = ctk.CTkEntry(self, textvariable=self.search_var, placeholder_text="Cerca per nome o descrizione...")
-        search_entry.grid(row=0, column=0, padx=20, pady=(10, 5), sticky="ew")
-        self.tab_view = ctk.CTkTabview(self, width=250)
-        self.tab_view.grid(row=1, column=0, padx=20, pady=(5, 5), sticky="nsew")
-        self.tab_names = ["Generale"] + self.user_tab_names
-        self.scrollable_frames = {}
-        for tab_name in self.tab_names:
-            tab = self.tab_view.add(tab_name)
-            tab.grid_columnconfigure(0, weight=1)
-            tab.grid_rowconfigure(0, weight=1)
-            label_text = "Tutti gli Script" if tab_name == "Generale" else f"Script in {tab_name}"
-            scrollable_frame = ctk.CTkScrollableFrame(tab, label_text=label_text)
-            scrollable_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
-            self.scrollable_frames[tab_name] = scrollable_frame
-        self.add_button = ctk.CTkButton(self, text="Aggiungi Nuovo Script", command=self.add_script)
-        self.add_button.grid(row=2, column=0, padx=20, pady=(5, 10), sticky="ew")
-        log_frame = ctk.CTkFrame(self)
-        log_frame.grid(row=3, column=0, padx=20, pady=(5, 10), sticky="nsew")
-        log_frame.grid_columnconfigure(0, weight=1)
-        self.log_textbox = ctk.CTkTextbox(log_frame, height=150, activate_scrollbars=True)
-        self.log_textbox.grid(row=0, column=0, sticky="nsew")
-        self.log_textbox.configure(state="disabled")
-        self.clear_log_button = ctk.CTkButton(log_frame, text="Pulisci Log", command=self.clear_log)
-        self.clear_log_button.grid(row=1, column=0, pady=(5, 0), sticky="e")
+        
+        # Caricamento iniziale
         self.refresh_script_list()
+
+    def load_configuration_and_data(self):
+        """Carica config e dati con gestione errori robusta."""
+        # Config
+        if not os.path.exists(CONFIG_FILE):
+            self.config = {"tabs": DEFAULT_TABS}
+            self._save_json(CONFIG_FILE, self.config)
+        else:
+            try:
+                with open(CONFIG_FILE, "r", encoding='utf-8') as f:
+                    self.config = json.load(f)
+            except Exception as e:
+                messagebox.showerror("Errore Config", f"Configurazione corrotta: {e}\nRipristino default.")
+                self.config = {"tabs": DEFAULT_TABS}
+        
+        self.user_tab_names = self.config.get("tabs", DEFAULT_TABS)
+
+        # Scripts
+        if not os.path.exists(DATA_FILE):
+            self.scripts = []
+        else:
+            try:
+                with open(DATA_FILE, "r", encoding='utf-8') as f:
+                    self.scripts = json.load(f)
+                
+                # Normalizzazione dati mancanti
+                dirty = False
+                for i, s in enumerate(self.scripts):
+                    if "order" not in s: 
+                        s["order"] = i
+                        dirty = True
+                    if "group" not in s:
+                        s["group"] = ""
+                        dirty = True
+                
+                if dirty: self._save_json(DATA_FILE, self.scripts)
+                self.scripts.sort(key=lambda x: x.get("order", 0))
+
+            except Exception as e:
+                messagebox.showerror("Errore Dati", f"File dati corrotto: {e}.\nIl file verrà rinominato in .bak")
+                try:
+                    shutil.copy(DATA_FILE, DATA_FILE + ".bak")
+                except: pass
+                self.scripts = []
+
+    def _save_json(self, filepath, data):
+        """Helper sicuro per salvare JSON con scrittura atomica."""
+        try:
+            # Scrivi su file temporaneo prima
+            dir_name = os.path.dirname(filepath) or "."
+            with tempfile.NamedTemporaryFile("w", delete=False, dir=dir_name, encoding='utf-8', suffix=".tmp") as tmp_file:
+                json.dump(data, tmp_file, indent=4, ensure_ascii=False)
+                tmp_name = tmp_file.name
+            
+            # Sostituzione atomica
+            shutil.move(tmp_name, filepath)
+        except Exception as e:
+            messagebox.showerror("Errore Salvataggio", f"Impossibile salvare su {filepath}:\n{e}")
+            if 'tmp_name' in locals() and os.path.exists(tmp_name):
+                os.unlink(tmp_name)
+
+    def _setup_ui(self):
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1) # Main content area
+
+        # 1. Header & Search
+        top_frame = ctk.CTkFrame(self, fg_color="transparent")
+        top_frame.grid(row=0, column=0, padx=20, pady=(10, 5), sticky="ew")
+        top_frame.grid_columnconfigure(0, weight=1)
+
+        self.search_var = ctk.StringVar()
+        self.search_var.trace_add("write", lambda *args: self.refresh_script_list())
+        self.search_entry = ctk.CTkEntry(top_frame, textvariable=self.search_var, placeholder_text="🔍 Cerca script...", height=35)
+        self.search_entry.grid(row=0, column=0, sticky="ew", padx=(0, 10))
+
+        self.add_btn = ctk.CTkButton(top_frame, text="+ Nuovo Script", command=self.add_script, width=120, height=35)
+        self.add_btn.grid(row=0, column=1)
+
+        # 2. Tab View
+        self.tab_view = ctk.CTkTabview(self)
+        self.tab_view.grid(row=1, column=0, padx=20, pady=(5, 5), sticky="nsew")
+        
+        self.scrollable_frames = {}
+        # Le tab vengono create dinamicamente in _rebuild_tabs
+
+        # 3. Log Area
+        log_frame = ctk.CTkFrame(self, height=150)
+        log_frame.grid(row=2, column=0, padx=20, pady=(5, 20), sticky="ew")
+        log_frame.grid_columnconfigure(0, weight=1)
+        
+        log_label = ctk.CTkLabel(log_frame, text="Log Esecuzione", font=("Arial", 10, "bold"))
+        log_label.grid(row=0, column=0, sticky="w", padx=5)
+
+        self.log_textbox = ctk.CTkTextbox(log_frame, height=120, activate_scrollbars=True, font=("Consolas", 12))
+        self.log_textbox.grid(row=1, column=0, sticky="nsew", padx=5, pady=(0, 5))
+        self.log_textbox.configure(state="disabled")
+
+        clear_btn = ctk.CTkButton(log_frame, text="Pulisci", width=60, height=20, command=self.clear_log, font=("Arial", 10))
+        clear_btn.grid(row=0, column=0, sticky="e", padx=5, pady=2)
+
+    def _rebuild_tabs(self):
+        """Ricostruisce le tab in base a self.user_tab_names. Fix per il refresh dinamico."""
+        # 1. Rimuovi tab esistenti
+        try:
+            # CTkTabview non ha un metodo 'delete_all', dobbiamo iterare
+            existing_tabs = list(self.scrollable_frames.keys())
+            for tab in existing_tabs:
+                try:
+                    self.tab_view.delete(tab)
+                except: pass # Potrebbe non esistere più
+        except Exception as e:
+            print(f"Warn: errore pulizia tab: {e}")
+
+        self.scrollable_frames = {}
+        
+        # 2. Crea Tab "Generale" (sempre presente)
+        all_tabs = ["Generale"] + self.user_tab_names
+        
+        for tab_name in all_tabs:
+            try:
+                self.tab_view.add(tab_name)
+                tab_frame = self.tab_view.tab(tab_name)
+                tab_frame.grid_columnconfigure(0, weight=1)
+                tab_frame.grid_rowconfigure(0, weight=1)
+                
+                scroll_frame = ctk.CTkScrollableFrame(tab_frame, fg_color="transparent")
+                scroll_frame.grid(row=0, column=0, sticky="nsew")
+                scroll_frame.grid_columnconfigure(0, weight=1)
+                
+                self.scrollable_frames[tab_name] = scroll_frame
+            except ValueError:
+                # Tab già esistente (raro se puliamo bene, ma sicurezza)
+                pass
 
     def _create_menubar(self):
         menubar = Menu(self)
+        
+        # File
         file_menu = Menu(menubar, tearoff=0)
+        file_menu.add_command(label="Salva Dati", command=lambda: self._save_json(DATA_FILE, self.scripts))
+        file_menu.add_separator()
         file_menu.add_command(label="Esci", command=self.destroy)
         menubar.add_cascade(label="File", menu=file_menu)
 
-        config_menu = Menu(menubar, tearoff=0)
-        config_menu.add_command(label="Aggiungi Scheda...", command=self._add_tab)
-        config_menu.add_command(label="Rinomina Scheda...", command=self._rename_tab)
-        config_menu.add_command(label="Elimina Scheda...", command=self._delete_tab)
-        menubar.add_cascade(label="Configurazione", menu=config_menu)
+        # Configurazione (Tab Management)
+        tab_menu = Menu(menubar, tearoff=0)
+        tab_menu.add_command(label="Nuova Scheda...", command=self._add_tab)
+        tab_menu.add_command(label="Rinomina Scheda...", command=self._rename_tab)
+        tab_menu.add_command(label="Elimina Scheda...", command=self._delete_tab)
+        menubar.add_cascade(label="Schede", menu=tab_menu)
+
+        # Help
+        help_menu = Menu(menubar, tearoff=0)
+        help_menu.add_command(label="Info", command=lambda: messagebox.showinfo("Info", f"{APP_NAME}\nVersione: {VERSION}"))
+        menubar.add_cascade(label="?", menu=help_menu)
 
         self.configure(menu=menubar)
 
-    def load_data(self):
-        if not os.path.exists(self.data_file): return []
-        try:
-            with open(self.data_file, "r", encoding='utf-8') as f: scripts = json.load(f)
-            needs_saving = False
-            for i, script in enumerate(scripts):
-                if "order" not in script:
-                    script["order"] = i
-                    needs_saving = True
-            if needs_saving: self.save_data(scripts)
-            return sorted(scripts, key=lambda s: s.get("order", 0))
-        except (json.JSONDecodeError, FileNotFoundError): return []
+    # --- LOGICA DATI E VISUALIZZAZIONE ---
 
-    def save_data(self, scripts_data=None):
-        if scripts_data is None: scripts_data = self.scripts
-        with open(self.data_file, "w", encoding='utf-8') as f: json.dump(scripts_data, f, indent=4, ensure_ascii=False)
+    def refresh_script_list(self, rebuild_tabs_structure=True):
+        if rebuild_tabs_structure:
+            self._rebuild_tabs()
 
-    def load_config(self):
-        default_config = {"tabs": ["Schede", "Contabilità", "Programmazione", "Report Giornaliere", "Strumenti Campione"]}
-        if not os.path.exists(self.config_file):
-            self.save_config(default_config)
-            return default_config
-        try:
-            with open(self.config_file, "r", encoding='utf-8') as f: return json.load(f)
-        except (json.JSONDecodeError, FileNotFoundError): return default_config
-
-    def save_config(self, config_data=None):
-        if config_data is None: config_data = self.config
-        with open(self.config_file, "w", encoding='utf-8') as f: json.dump(config_data, f, indent=4, ensure_ascii=False)
-
-    def _populate_frame_with_grouped_scripts(self, parent_frame, scripts_list):
-        key_func = lambda s: (s.get("group") or "").lower()
-        sorted_scripts = sorted(scripts_list, key=key_func)
-        for group_name, group_items_iterator in itertools.groupby(sorted_scripts, key=key_func):
-            group_items = list(group_items_iterator)
-            if group_name:
-                group_header = ctk.CTkLabel(parent_frame, text=group_name.upper(), font=ctk.CTkFont(size=12, weight="bold"))
-                group_header.pack(fill="x", padx=5, pady=(15, 5))
-                separator = ctk.CTkFrame(parent_frame, height=1, fg_color="gray50")
-                separator.pack(fill="x", padx=5, pady=(0, 10))
-            for script in group_items:
-                original_index = self.scripts.index(script)
-                self.create_script_entry(parent_frame, original_index, script)
-
-    def refresh_script_list(self):
         search_term = self.search_var.get().lower().strip()
-        if search_term:
-            scripts_to_display = [s for s in self.scripts if search_term in s.get("name", "").lower() or search_term in s.get("description", "").lower()]
-        else:
-            scripts_to_display = self.scripts
+        
+        # Filtro
+        filtered_scripts = []
+        for s in self.scripts:
+            if search_term:
+                if (search_term in s.get("name", "").lower() or 
+                    search_term in s.get("description", "").lower() or
+                    search_term in s.get("group", "").lower()):
+                    filtered_scripts.append(s)
+            else:
+                filtered_scripts.append(s)
+
+        # Raggruppamento per Tab
         scripts_by_tab = collections.defaultdict(list)
-        for script in scripts_to_display:
-            tab_name = script.get("tab", self.user_tab_names[0] if self.user_tab_names else "Schede")
-            scripts_by_tab[tab_name].append(script)
-        for frame in self.scrollable_frames.values():
+        for script in filtered_scripts:
+            tab = script.get("tab", "Schede")
+            if tab not in self.user_tab_names: 
+                tab = "Schede" # Fallback
+                if tab not in self.user_tab_names and self.user_tab_names:
+                    tab = self.user_tab_names[0] # Super fallback
+            
+            scripts_by_tab[tab].append(script)
+            scripts_by_tab["Generale"].append(script) # Tutti in generale
+
+        # Render
+        for tab_name, frame in self.scrollable_frames.items():
+            # Pulisci frame
             for widget in frame.winfo_children(): widget.destroy()
-        for tab_name in self.user_tab_names:
-            if tab_name in self.scrollable_frames:
-                self._populate_frame_with_grouped_scripts(self.scrollable_frames[tab_name], scripts_by_tab[tab_name])
-        self._populate_frame_with_grouped_scripts(self.scrollable_frames["Generale"], scripts_to_display)
+            
+            tab_scripts = scripts_by_tab.get(tab_name, [])
+            self._render_scripts_in_frame(frame, tab_scripts)
 
-    def create_script_entry(self, parent_frame, index, script):
-        entry_frame = ctk.CTkFrame(parent_frame)
-        entry_frame.pack(fill="x", expand=True, padx=10, pady=5)
-        info_frame = ctk.CTkFrame(entry_frame)
-        info_frame.pack(side="left", fill="x", expand=True, padx=5, pady=5)
-        ctk.CTkLabel(info_frame, text=script["name"], font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w")
-        ctk.CTkLabel(info_frame, text=script["description"], anchor="w").pack(anchor="w")
-        last_executed_ts = script.get("last_executed", "N/D")
-        ctk.CTkLabel(info_frame, text=f"Ultima Esecuzione: {last_executed_ts}", text_color="gray", font=ctk.CTkFont(size=10)).pack(anchor="w", pady=(5,0))
-        action_frame = ctk.CTkFrame(entry_frame)
-        action_frame.pack(side="right", padx=5, pady=5)
-        order_frame = ctk.CTkFrame(action_frame)
-        order_frame.pack(side="left", padx=5)
-        ctk.CTkButton(order_frame, text="▲", width=20, command=lambda i=index: self._move_script(i, -1)).pack()
-        ctk.CTkButton(order_frame, text="▼", width=20, command=lambda i=index: self._move_script(i, 1)).pack()
-        notes = script.get("notes")
-        if notes:
-            ctk.CTkButton(action_frame, text="Note", width=60, command=lambda n=notes, name=script.get("name"): self._show_notes(name, n)).pack(side="left", padx=5)
-        excel_path = script.get("excel_path")
-        if excel_path:
-            ctk.CTkButton(action_frame, text="Apri Excel", width=90, command=lambda p=excel_path: self.open_excel(p)).pack(side="left", padx=5)
-        ctk.CTkButton(action_frame, text="Avvia", width=80, command=lambda i=index: self.launch_script(i)).pack(side="left", padx=5)
-        ctk.CTkButton(action_frame, text="Modifica", width=80, command=lambda i=index: self.edit_script(i)).pack(side="left", padx=5)
-        ctk.CTkButton(action_frame, text="Elimina", width=80, fg_color="red", hover_color="darkred", command=lambda i=index: self.delete_script(i)).pack(side="left", padx=5)
+    def _render_scripts_in_frame(self, frame, scripts_list):
+        # Ordina per gruppo poi per ordine personalizzato
+        scripts_list.sort(key=lambda s: (s.get("group", "").lower(), s.get("order", 0)))
+        
+        # Raggruppa visivamente
+        grouped = itertools.groupby(scripts_list, key=lambda s: s.get("group", ""))
+        
+        for group_name, group_iter in grouped:
+            group_items = list(group_iter)
+            
+            # Header gruppo (solo se c'è un nome gruppo o se non siamo nella tab Generale con mix)
+            if group_name:
+                header = ctk.CTkLabel(frame, text=group_name.upper(), font=("Arial", 11, "bold"), text_color="gray70", anchor="w")
+                header.pack(fill="x", padx=10, pady=(15, 2))
+                ctk.CTkFrame(frame, height=2, fg_color="gray40").pack(fill="x", padx=10, pady=(0, 5))
 
-    def _append_log_message(self, message):
-        self.log_textbox.configure(state="normal")
-        self.log_textbox.insert("end", message)
-        self.log_textbox.see("end")
-        self.log_textbox.configure(state="disabled")
+            for script in group_items:
+                self._create_script_card(frame, script)
 
-    def _read_process_output(self, process, script_name):
-        self.after(0, self._append_log_message, f"--- Avvio del processo: {script_name} ---\n")
-        for line in iter(process.stdout.readline, ''): self.after(0, self._append_log_message, line)
-        process.stdout.close()
-        return_code = process.wait()
-        self.after(0, self._append_log_message, f"\n--- Processo '{script_name}' terminato con codice d'uscita: {return_code} ---\n")
+    def _create_script_card(self, parent, script):
+        real_index = self.scripts.index(script)
+        
+        # Validazione percorso
+        path = script.get("path", "")
+        exists = os.path.exists(path) if path else False
 
-    def launch_script(self, script_index):
-        script_to_run = self.scripts[script_index]
-        path = script_to_run.get("path")
+        card = ctk.CTkFrame(parent)
+        if not exists:
+            card.configure(border_color="#FF5555", border_width=2) # Bordo rosso se manca
+
+        card.pack(fill="x", padx=5, pady=4)
+        
+        # Colonna Info
+        info_col = ctk.CTkFrame(card, fg_color="transparent")
+        info_col.pack(side="left", fill="both", expand=True, padx=10, pady=5)
+        
+        name_text = script["name"]
+        if not exists:
+            name_text += " ⚠️ (File mancante)"
+
+        name_lbl = ctk.CTkLabel(info_col, text=name_text, font=("Arial", 13, "bold"))
+        if not exists:
+            name_lbl.configure(text_color=("#FF5555", "#FF5555")) # Rosso in entrambi i temi
+        
+        name_lbl.pack(anchor="w")
+        
+        if script.get("description"):
+            ctk.CTkLabel(info_col, text=script["description"], font=("Arial", 11), text_color="gray").pack(anchor="w")
+        
+        last_run = script.get("last_executed", "Mai")
+        ctk.CTkLabel(info_col, text=f"Ultimo avvio: {last_run}", font=("Arial", 9), text_color="gray60").pack(anchor="w", pady=(2,0))
+
+        # Colonna Azioni
+        action_col = ctk.CTkFrame(card, fg_color="transparent")
+        action_col.pack(side="right", padx=10, pady=5)
+
+        # Icone/Bottoni compatti
+        if script.get("notes"):
+            ctk.CTkButton(action_col, text="📝", width=30, command=lambda s=script: self._show_notes(s)).pack(side="left", padx=2)
+        
+        if script.get("excel_path"):
+            ctk.CTkButton(action_col, text="📊 Excel", width=60, fg_color="green", command=lambda p=script["excel_path"]: self.open_excel(p)).pack(side="left", padx=2)
+
+        ctk.CTkButton(action_col, text="▶ Avvia", width=60, command=lambda i=real_index: self.launch_script(i)).pack(side="left", padx=5)
+        
+        # Menu Altro
+        settings_btn = ctk.CTkButton(action_col, text="⚙", width=30, fg_color="gray30", command=lambda i=real_index: self.edit_script(i))
+        settings_btn.pack(side="left", padx=2)
+        
+        del_btn = ctk.CTkButton(action_col, text="🗑", width=30, fg_color="#AA0000", hover_color="#880000", command=lambda i=real_index: self.delete_script(i))
+        del_btn.pack(side="left", padx=2)
+
+    # --- LOGICA ESECUZIONE ---
+
+    def _log(self, msg):
+        def _write():
+            self.log_textbox.configure(state="normal")
+            self.log_textbox.insert("end", msg)
+            self.log_textbox.see("end")
+            self.log_textbox.configure(state="disabled")
+        self.after(0, _write)
+
+    def launch_script(self, index):
+        script = self.scripts[index]
+        path = script.get("path", "")
+        name = script.get("name", "Unknown")
+
         if not path or not os.path.exists(path):
-            self._append_log_message(f"Errore: Percorso non valido o non trovato per lo script '{script_to_run.get('name')}'\n")
+            self._log(f"❌ ERRORE: File non trovato: {path}\n")
             return
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.scripts[script_index]["last_executed"] = now_str
-        self.save_data()
-        self.refresh_script_list()
+
+        # Aggiorna timestamp
+        script["last_executed"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self._save_json(DATA_FILE, self.scripts)
+        self.refresh_script_list(rebuild_tabs_structure=False) # Aggiorna solo le card per vedere timestamp
+
+        self._log(f"🚀 Avvio: {name} ({path})...\n")
+
+        # Thread separato per non bloccare UI
+        threading.Thread(target=self._run_process_thread, args=(path, name), daemon=True).start()
+
+    def _run_process_thread(self, path, name):
         try:
-            process = subprocess.Popen(['cmd', '/c', path], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace', creationflags=subprocess.CREATE_NO_WINDOW)
-            thread = threading.Thread(target=self._read_process_output, args=(process, os.path.basename(path)))
-            thread.daemon = True
-            thread.start()
+            # FIX: Gestione encoding Windows e quoting automatico
+            # Usiamo shell=True con path tra virgolette se necessario, o meglio una lista diretta se eseguibile.
+            # Per .bat e .vbs su windows, 'cmd /c' è sicuro.
+            
+            # Determina encoding console sistema
+            sys_encoding = locale.getpreferredencoding()
+            
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW # Nasconde finestra cmd pop-up
+
+            # Costruzione comando sicura
+            # Se è un .bat, .cmd o .vbs, meglio chiamarli tramite cmd /c "path"
+            cmd = ['cmd', '/c', path]
+            
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL, # Previene hang se lo script chiede input
+                text=True,
+                encoding=sys_encoding, # Encoding corretto per evitare crash di decodifica
+                errors='replace',      # Sostituisci caratteri strani invece di crashare
+                startupinfo=startupinfo,
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
+
+            for line in iter(process.stdout.readline, ''):
+                self._log(f"[{name}] {line}")
+            
+            process.stdout.close()
+            rc = process.wait()
+            
+            status_icon = "✅" if rc == 0 else "⚠️"
+            self._log(f"{status_icon} Terminato: {name} (Codice: {rc})\n--------------------------------------------------\n")
+
         except Exception as e:
-            self._append_log_message(f"Errore durante l'avvio dello script '{script_to_run.get('name')}': {e}\n")
+            self._log(f"❌ ECCEZIONE AVVIO {name}: {str(e)}\n")
 
     def open_excel(self, path):
-        if os.path.exists(path):
-            try: os.startfile(path)
-            except Exception as e: print(f"Errore durante l'apertura del file Excel: {e}")
-        else: print(f"Percorso non trovato: {path}")
+        if not os.path.exists(path):
+            messagebox.showerror("Errore", f"File Excel non trovato:\n{path}")
+            return
+        try:
+            os.startfile(path)
+        except Exception as e:
+            messagebox.showerror("Errore", f"Impossibile aprire Excel:\n{e}")
+
+    # --- CRUD SCRIPT ---
 
     def add_script(self):
-        dialog = ScriptDialog(self, tab_names=self.user_tab_names, title="Aggiungi Nuovo Script")
+        dialog = ScriptDialog(self, self.user_tab_names, title="Nuovo Script")
         self.wait_window(dialog)
-        if dialog.result and dialog.result["name"] and dialog.result["path"]:
+        if dialog.result:
             new_script = dialog.result
             new_script["order"] = len(self.scripts)
+            new_script["last_executed"] = "Mai"
             self.scripts.append(new_script)
-            self.save_data()
-            self.refresh_script_list()
+            self._save_json(DATA_FILE, self.scripts)
+            self.refresh_script_list(rebuild_tabs_structure=False)
 
     def edit_script(self, index):
-        script_to_edit = self.scripts[index]
-        dialog = ScriptDialog(self, tab_names=self.user_tab_names, title="Modifica Script", script_data=script_to_edit)
+        script = self.scripts[index]
+        dialog = ScriptDialog(self, self.user_tab_names, title="Modifica Script", script_data=script)
         self.wait_window(dialog)
-        if dialog.result and dialog.result["name"] and dialog.result["path"]:
+        if dialog.result:
+            # Mantieni campi non modificabili dal dialog (order, last_executed)
+            dialog.result["order"] = script.get("order", 0)
+            dialog.result["last_executed"] = script.get("last_executed", "Mai")
+            
             self.scripts[index] = dialog.result
-            self.save_data()
-            self.refresh_script_list()
+            self._save_json(DATA_FILE, self.scripts)
+            self.refresh_script_list(rebuild_tabs_structure=False)
 
     def delete_script(self, index):
-        self.scripts.pop(index)
-        for i, script in enumerate(self.scripts):
-            script["order"] = i
-        self.save_data()
-        self.refresh_script_list()
+        if messagebox.askyesno("Conferma", "Eliminare questo script?"):
+            self.scripts.pop(index)
+            self._save_json(DATA_FILE, self.scripts)
+            self.refresh_script_list(rebuild_tabs_structure=False)
+
+    def _show_notes(self, script):
+        dialog = ctk.CTkToplevel(self)
+        dialog.title(f"Note: {script['name']}")
+        dialog.geometry("400x300")
+        txt = ctk.CTkTextbox(dialog, wrap="word")
+        txt.pack(fill="both", expand=True, padx=10, pady=10)
+        txt.insert("1.0", script.get("notes", ""))
+        txt.configure(state="disabled")
 
     def clear_log(self):
         self.log_textbox.configure(state="normal")
         self.log_textbox.delete("1.0", "end")
         self.log_textbox.configure(state="disabled")
 
-    def _move_script(self, index, direction):
-        if direction == -1 and index > 0:
-            self.scripts[index], self.scripts[index - 1] = self.scripts[index - 1], self.scripts[index]
-        elif direction == 1 and index < len(self.scripts) - 1:
-            self.scripts[index], self.scripts[index + 1] = self.scripts[index + 1], self.scripts[index]
-        else:
-            return
-        for i, script in enumerate(self.scripts):
-            script["order"] = i
-        self.save_data()
-        self.refresh_script_list()
-
-    def _show_notes(self, script_name, notes):
-        dialog = ctk.CTkToplevel(self)
-        dialog.title(f"Note per: {script_name}")
-        dialog.geometry("450x350")
-        dialog.transient(self)
-        dialog.attributes("-topmost", True)
-        textbox = ctk.CTkTextbox(dialog, wrap="word")
-        textbox.pack(expand=True, fill="both", padx=10, pady=10)
-        textbox.insert("1.0", notes)
-        textbox.configure(state="disabled")
-        ok_button = ctk.CTkButton(dialog, text="OK", command=dialog.destroy, width=100)
-        ok_button.pack(pady=10)
-        dialog.grab_set()
-
-    def _show_restart_dialog(self):
-        messagebox.showinfo("Riavvio Richiesto", "La modifica è stata salvata. Per favore, riavvia l'applicazione per vedere le modifiche.")
-
-    def _on_search(self):
-        self.refresh_script_list()
+    # --- GESTIONE TAB ---
 
     def _add_tab(self):
-        dialog = ctk.CTkInputDialog(text="Inserisci il nome della nuova scheda:", title="Aggiungi Scheda")
-        new_tab_name = dialog.get_input()
-        if not new_tab_name or not new_tab_name.strip(): return
-        new_tab_name = new_tab_name.strip()
-        if new_tab_name in self.tab_names:
-            messagebox.showerror("Errore", f"La scheda '{new_tab_name}' esiste già.")
-            return
-        self.user_tab_names.append(new_tab_name)
-        self.config["tabs"] = self.user_tab_names
-        self.save_config()
-        self._show_restart_dialog()
+        dialog = ctk.CTkInputDialog(text="Nome nuova scheda:", title="Nuova Scheda")
+        new_name = dialog.get_input()
+        if new_name:
+            new_name = new_name.strip()
+            if new_name in self.user_tab_names:
+                messagebox.showerror("Errore", "Nome scheda già esistente.")
+                return
+            self.user_tab_names.append(new_name)
+            self.config["tabs"] = self.user_tab_names
+            self._save_json(CONFIG_FILE, self.config)
+            self.refresh_script_list(rebuild_tabs_structure=True) # Refresh completo
 
     def _rename_tab(self):
-        select_dialog = SelectTabDialog(self, self.user_tab_names, "Rinomina Scheda", "Seleziona la scheda da rinominare:")
-        self.wait_window(select_dialog)
-        old_name = select_dialog.result
+        if not self.user_tab_names: return
+        sel_dlg = SelectTabDialog(self, self.user_tab_names, "Rinomina", "Scegli scheda da rinominare:")
+        self.wait_window(sel_dlg)
+        old_name = sel_dlg.result
+        if old_name:
+            name_dlg = ctk.CTkInputDialog(text=f"Nuovo nome per '{old_name}':", title="Rinomina")
+            new_name = name_dlg.get_input()
+            if new_name:
+                new_name = new_name.strip()
+                if new_name in self.user_tab_names and new_name != old_name:
+                    messagebox.showerror("Errore", "Nome già in uso.")
+                    return
+                
+                # Aggiorna lista tab
+                idx = self.user_tab_names.index(old_name)
+                self.user_tab_names[idx] = new_name
+                self.config["tabs"] = self.user_tab_names
+                self._save_json(CONFIG_FILE, self.config)
 
-        if not old_name: return
-
-        new_name_dialog = ctk.CTkInputDialog(text=f"Inserisci il nuovo nome per la scheda '{old_name}':", title="Rinomina Scheda")
-        new_name = new_name_dialog.get_input()
-
-        if not new_name or not new_name.strip(): return
-        new_name = new_name.strip()
-        if new_name == old_name: return
-        if new_name in self.tab_names:
-            messagebox.showerror("Errore", f"La scheda '{new_name}' esiste già.")
-            return
-
-        try:
-            index = self.user_tab_names.index(old_name)
-            self.user_tab_names[index] = new_name
-            self.config["tabs"] = self.user_tab_names
-            self.save_config()
-        except ValueError:
-            messagebox.showerror("Errore", "Impossibile trovare la scheda da rinominare.")
-            return
-
-        for script in self.scripts:
-            if script.get("tab") == old_name:
-                script["tab"] = new_name
-        self.save_data()
-        self._show_restart_dialog()
+                # Aggiorna script associati
+                for s in self.scripts:
+                    if s.get("tab") == old_name:
+                        s["tab"] = new_name
+                self._save_json(DATA_FILE, self.scripts)
+                
+                self.refresh_script_list(rebuild_tabs_structure=True)
 
     def _delete_tab(self):
-        if len(self.user_tab_names) <= 1:
-            messagebox.showerror("Errore", "Non puoi eliminare l'ultima scheda utente.")
-            return
+        if not self.user_tab_names: return
+        sel_dlg = SelectTabDialog(self, self.user_tab_names, "Elimina", "Scegli scheda da eliminare:")
+        self.wait_window(sel_dlg)
+        target = sel_dlg.result
+        if target:
+            if not messagebox.askyesno("Sicuro?", f"Eliminare '{target}'?\nGli script verranno spostati nella prima scheda disponibile."):
+                return
+            
+            self.user_tab_names.remove(target)
+            self.config["tabs"] = self.user_tab_names
+            self._save_json(CONFIG_FILE, self.config)
 
-        select_dialog = SelectTabDialog(self, self.user_tab_names, "Elimina Scheda", "Seleziona la scheda da eliminare:")
-        self.wait_window(select_dialog)
-        tab_to_delete = select_dialog.result
+            # Sposta script orfani
+            fallback = self.user_tab_names[0] if self.user_tab_names else "Schede"
+            for s in self.scripts:
+                if s.get("tab") == target:
+                    s["tab"] = fallback
+            self._save_json(DATA_FILE, self.scripts)
 
-        if not tab_to_delete: return
-
-        if not messagebox.askyesno("Conferma Eliminazione", f"Sei sicuro di voler eliminare la scheda '{tab_to_delete}'?\nGli script associati verranno spostati nella prima scheda disponibile."):
-            return
-
-        fallback_tab = next(tab for tab in self.user_tab_names if tab != tab_to_delete)
-        self.user_tab_names.remove(tab_to_delete)
-        self.config["tabs"] = self.user_tab_names
-        self.save_config()
-
-        for script in self.scripts:
-            if script.get("tab") == tab_to_delete:
-                script["tab"] = fallback_tab
-        self.save_data()
-        self._show_restart_dialog()
+            self.refresh_script_list(rebuild_tabs_structure=True)
 
 if __name__ == "__main__":
     app = App()

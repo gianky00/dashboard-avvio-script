@@ -184,6 +184,7 @@ class App(ctk.CTk):
         self.scripts = []
         self.config = {}
         self.user_tab_names = []
+        self.running_processes = {}  # {index: subprocess.Popen}
         
         self.load_configuration_and_data()
         self._setup_ui()
@@ -451,7 +452,11 @@ class App(ctk.CTk):
         if script.get("excel_path"):
             ctk.CTkButton(action_col, text="📊 Excel", width=60, fg_color="green", command=lambda p=script["excel_path"]: self.open_excel(p)).pack(side="left", padx=2)
 
-        ctk.CTkButton(action_col, text="▶ Avvia", width=60, command=lambda i=real_index: self.launch_script(i)).pack(side="left", padx=5)
+        # Start/Stop Button
+        if real_index in self.running_processes:
+            ctk.CTkButton(action_col, text="⏹ Stop", width=60, fg_color="#AA0000", hover_color="#880000", command=lambda i=real_index: self.stop_script(i)).pack(side="left", padx=5)
+        else:
+            ctk.CTkButton(action_col, text="▶ Avvia", width=60, command=lambda i=real_index: self.launch_script(i)).pack(side="left", padx=5)
         
         # Menu Altro
         settings_btn = ctk.CTkButton(action_col, text="⚙", width=30, fg_color="gray30", command=lambda i=real_index: self.edit_script(i))
@@ -471,6 +476,10 @@ class App(ctk.CTk):
         self.after(0, _write)
 
     def launch_script(self, index):
+        if index in self.running_processes:
+            messagebox.showinfo("Info", "Lo script è già in esecuzione.")
+            return
+
         script = self.scripts[index]
         path = script.get("path", "")
         name = script.get("name", "Unknown")
@@ -482,14 +491,42 @@ class App(ctk.CTk):
         # Aggiorna timestamp
         script["last_executed"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self._save_json(DATA_FILE, self.scripts)
-        self.refresh_script_list(rebuild_tabs_structure=False) # Aggiorna solo le card per vedere timestamp
-
+        
+        # Aggiorna UI immediato per mostrare stato "Running" (se gestito in refresh) o log
         self._log(f"🚀 Avvio: {name} ({path})...\n")
 
         # Thread separato per non bloccare UI
-        threading.Thread(target=self._run_process_thread, args=(path, name), daemon=True).start()
+        threading.Thread(target=self._run_process_thread, args=(path, name, index), daemon=True).start()
+        
+        # Refresh UI per mostrare pulsante Stop
+        self.after(100, lambda: self.refresh_script_list(rebuild_tabs_structure=False))
 
-    def _run_process_thread(self, path, name):
+    def stop_script(self, index):
+        if index in self.running_processes:
+            proc = self.running_processes[index]
+            try:
+                self._log(f"🛑 Richiesto arresto forzato (incluso background) per: {self.scripts[index]['name']}...\n")
+                
+                # Usiamo taskkill su Windows per uccidere l'intero albero dei processi (/T) in modo forzato (/F)
+                # Questo risolve il problema dei processi orfani lanciati da script batch o cmd.
+                subprocess.run(
+                    ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
+                
+                # Fallback di sicurezza: se taskkill fallisce o non siamo su Windows (improbabile dato il contesto)
+                if proc.poll() is None:
+                    proc.terminate()
+                    
+            except Exception as e:
+                self._log(f"❌ Errore durante l'arresto: {e}\n")
+        else:
+            messagebox.showinfo("Info", "Lo script non risulta in esecuzione.")
+            self.refresh_script_list(rebuild_tabs_structure=False)
+
+    def _run_process_thread(self, path, name, index):
         try:
             # FIX: Gestione encoding Windows e quoting automatico
             # Usiamo shell=True con path tra virgolette se necessario, o meglio una lista diretta se eseguibile.
@@ -517,6 +554,9 @@ class App(ctk.CTk):
                 creationflags=subprocess.CREATE_NO_WINDOW
             )
 
+            # Registra processo
+            self.running_processes[index] = process
+
             for line in iter(process.stdout.readline, ''):
                 self._log(f"[{name}] {line}")
             
@@ -524,10 +564,24 @@ class App(ctk.CTk):
             rc = process.wait()
             
             status_icon = "✅" if rc == 0 else "⚠️"
+            # Se rc è negativo (es. -15 o altro), potrebbe essere stato killato
+            if rc != 0 and index in self.running_processes:
+                 # Se è ancora in lista ma rc != 0, è crashato o finito male.
+                 # Se lo abbiamo killato noi, potrebbe essere già uscito.
+                 pass
+
             self._log(f"{status_icon} Terminato: {name} (Codice: {rc})\n--------------------------------------------------\n")
 
         except Exception as e:
             self._log(f"❌ ECCEZIONE AVVIO {name}: {str(e)}\n")
+        
+        finally:
+            # Cleanup
+            if index in self.running_processes:
+                del self.running_processes[index]
+            
+            # Refresh UI (torna verde)
+            self.after(0, lambda: self.refresh_script_list(rebuild_tabs_structure=False))
 
     def open_excel(self, path):
         if not os.path.exists(path):
@@ -565,6 +619,10 @@ class App(ctk.CTk):
             self.refresh_script_list(rebuild_tabs_structure=False)
 
     def delete_script(self, index):
+        if index in self.running_processes:
+            messagebox.showwarning("Azione Negata", "Impossibile eliminare uno script mentre è in esecuzione.\nArrestalo prima.")
+            return
+
         if messagebox.askyesno("Conferma", "Eliminare questo script?"):
             self.scripts.pop(index)
             self._save_json(DATA_FILE, self.scripts)

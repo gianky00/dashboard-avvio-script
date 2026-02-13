@@ -30,7 +30,7 @@
         "notes": "",
         "group": "STRUMENTALE",
         "order": 2,
-        "last_executed": "2026-01-26 16:12:29"
+        "last_executed": "2026-02-05 13:59:04"
     },
     {
         "name": "rileva PdL aperti STRUMENTALE",
@@ -41,7 +41,7 @@
         "notes": "",
         "group": "STRUMENTALE",
         "order": 3,
-        "last_executed": "2026-01-24 12:32:21"
+        "last_executed": "2026-02-06 11:47:17"
     },
     {
         "name": "prenotazione pdl STRUMENTALE",
@@ -73,7 +73,7 @@
         "notes": "",
         "group": "ANALISI",
         "order": 6,
-        "last_executed": "2026-01-24 07:03:14"
+        "last_executed": "2026-02-03 13:41:35"
     },
     {
         "name": "rileva PdL aperti ANALISI",
@@ -84,7 +84,7 @@
         "notes": "",
         "group": "ANALISI",
         "order": 7,
-        "last_executed": "2026-01-21 14:38:42"
+        "last_executed": "2026-02-05 16:24:04"
     },
     {
         "name": "prenotazione PdL ANALISI",

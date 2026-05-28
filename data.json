@@ -30,7 +30,7 @@
         "notes": "",
         "group": "STRUMENTALE",
         "order": 2,
-        "last_executed": "2026-02-05 13:59:04"
+        "last_executed": "2026-04-18 09:04:13"
     },
     {
         "name": "rileva PdL aperti STRUMENTALE",
@@ -41,7 +41,7 @@
         "notes": "",
         "group": "STRUMENTALE",
         "order": 3,
-        "last_executed": "2026-02-06 11:47:17"
+        "last_executed": "2026-04-15 14:57:07"
     },
     {
         "name": "prenotazione pdl STRUMENTALE",
@@ -73,7 +73,7 @@
         "notes": "",
         "group": "ANALISI",
         "order": 6,
-        "last_executed": "2026-02-03 13:41:35"
+        "last_executed": "2026-04-18 09:02:42"
     },
     {
         "name": "rileva PdL aperti ANALISI",
@@ -84,7 +84,7 @@
         "notes": "",
         "group": "ANALISI",
         "order": 7,
-        "last_executed": "2026-02-05 16:24:04"
+        "last_executed": "2026-03-03 16:03:12"
     },
     {
         "name": "prenotazione PdL ANALISI",
@@ -94,7 +94,8 @@
         "tab": "Programmazione",
         "notes": "",
         "group": "ANALISI",
-        "order": 8
+        "order": 8,
+        "last_executed": "2026-02-19 16:33:18"
     },
     {
         "name": "programmazione prossima ANALISI",
@@ -112,11 +113,11 @@
         "description": "",
         "path": "C:/Users/Coemi/Desktop/collegamenti percorsi script/programmazione_prossima.bat",
         "excel_path": "",
-        "tab": "Schede",
+        "tab": "Programmazione",
         "notes": "",
         "group": "STRUMENTALE",
         "order": 10,
-        "last_executed": "2025-11-29 11:20:56"
+        "last_executed": "2026-04-10 16:39:51"
     },
     {
         "name": "MAGO",
@@ -128,5 +129,16 @@
         "group": "",
         "order": 11,
         "last_executed": "2025-10-23 15:26:00"
+    },
+    {
+        "name": "RILEVA PROG.TOTALE",
+        "description": "",
+        "path": "C:\\Users\\Coemi\\Desktop\\collegamenti percorsi script\\rileva_nuovi_pdl_mensile.bat",
+        "excel_path": "",
+        "tab": "Programmazione",
+        "notes": "",
+        "group": "",
+        "order": 12,
+        "last_executed": "2026-04-21 15:51:52"
     }
 ]

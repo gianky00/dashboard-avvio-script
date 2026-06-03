@@ -1,0 +1,23 @@
+[project]
+name = "dashboard-avvio-script"
+version = "0.1.0"
+description = "Dashboard GUI per la gestione e l'avvio di script"
+authors = [
+    {name = "Coemi"}
+]
+requires-python = ">=3.10,<3.15"
+dependencies = [
+    "packaging (>=26.2,<27.0)",
+    "pypiwin32 (>=223,<224)",
+    "pyside6 (>=6.11.1,<7.0.0)"
+]
+
+[tool.poetry]
+packages = [{include = "dashboard_app", from = "src"}]
+
+[project.scripts]
+dashboard = "dashboard_app:main"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

@@ -1,49 +1,72 @@
-# Dashboard Avvio Script
+# ♾️ DASHBOARD AVVIO SCRIPT: ARCHITECTURAL CONTEXT
 
-## Panoramica del Progetto
-**Dashboard Avvio Script** è un'applicazione desktop sviluppata in Python che funge da launcher centralizzato per script di automazione (Batch, VBS) e file Excel. Utilizza **CustomTkinter** per fornire un'interfaccia grafica moderna e intuitiva, permettendo all'utente di organizzare i propri strumenti in schede (Tab) e gruppi personalizzabili.
+## 📌 PROJECT OVERVIEW
+Questa è una **Dashboard GUI** sviluppata in Python per la gestione centralizzata e l'esecuzione di script di automazione (Batch, VBS, CMD, PowerShell, Python). Permette di organizzare gli script in schede e gruppi, monitorarne l'esecuzione tramite log in tempo reale e aprire file Excel correlati.
 
-### Caratteristiche Principali
-- **Organizzazione a Schede:** Creazione, rinomina ed eliminazione dinamica di schede per categorizzare gli script (es. Contabilità, Ufficio).
-- **Esecuzione Monitorata:** Lancia script `.bat` e `.vbs` catturando l'output (stdout/stderr) in un pannello di log integrato in tempo reale.
-- **Gestione Excel:** Collegamenti rapidi per aprire file `.xlsx` o `.xls`.
-- **Persistenza Dati:** Salvataggio automatico di configurazioni e script su file JSON.
-- **Note e Metadati:** Possibilità di aggiungere note dettagliate per ogni script e tracciamento dell'ultimo avvio.
+### 🛠️ TECH STACK
+- **Language:** Python 3.10 - 3.14
+- **Dependency Management:** [Poetry](https://python-poetry.org/)
+- **GUI Framework:** [PySide6](https://doc.qt.io/qtforpython-6/) (Qt for Python)
+- **Aesthetic:** Tema Chiaro nativo con stile "Fusion".
+- **Execution:** `subprocess` con gestione multithreading.
+- **Persistence:** File JSON (`config.json`, `data.json`).
 
-## Architettura e File Chiave
+---
 
-La struttura del progetto è piatta e contenuta nella root directory.
+## 🚀 BUILDING AND RUNNING
 
-- **`dashboard.py`**: Il cuore dell'applicazione. Contiene:
-  - `App`: La classe principale che gestisce la GUI, il loop degli eventi e la logica di business.
-  - `ScriptDialog`: Finestra modale per aggiungere/modificare script.
-  - `SelectTabDialog`: Finestra di utility per la gestione delle schede.
-  - Logica di esecuzione processi tramite `subprocess`.
-- **`start_dashboard.bat`**: Script di avvio per Windows. Installa silenziosamente le dipendenze mancanti ed esegue l'applicazione.
-- **`config.json`**: Memorizza la configurazione globale, principalmente l'elenco delle schede (Tabs) attive.
-- **`data.json`**: Database JSON che contiene l'array di oggetti "script" con le relative proprietà (percorso, nome, descrizione, gruppo, note, timestamp esecuzione).
-- **`requirements.txt`**: Elenco delle dipendenze Python (`customtkinter`, `pyautogui`).
-- **`test.db`**: File SQLite presente ma **non utilizzato** attivamente nel codice principale (`dashboard.py`).
+### 📋 Prerequisiti
+- Python 3.10+ installato (compatibile con PySide6).
+- Poetry installato (`pip install poetry`).
 
-## Istruzioni per l'Uso
-
-### Prerequisiti
-- Python 3.x installato e aggiunto al PATH di sistema.
-- Sistema Operativo Windows (per il supporto `.bat`/`.vbs` e `os.startfile`).
-
-### Avvio
-Eseguire il file batch:
-```cmd
-start_dashboard.bat
+### ⚙️ Installazione Dipendenze
+```powershell
+poetry install
 ```
-Questo comando verificherà e installerà le dipendenze necessarie prima di lanciare la GUI.
 
-### Sviluppo e Manutenzione
-- **Librerie UI:** Il progetto usa `customtkinter`. Assicurarsi di seguire le convenzioni di questo framework per modifiche alla UI.
-- **Dipendenze:** `pyautogui` è listato in `requirements.txt` ma non importato in `dashboard.py`. Verificare se è necessario per gli script esterni o se può essere rimosso.
-- **Logging:** L'output dei processi figli viene letto in un thread separato (`_read_process_output`) per non bloccare la UI principale.
+### ▶️ Avvio Applicazione
+È possibile avviare la dashboard nei seguenti modi:
+1. Tramite Poetry (comando installato):
+   ```powershell
+   poetry run dashboard
+   ```
+2. Tramite il file batch aggiornato:
+   ```powershell
+   .\start_dashboard.bat
+   ```
 
-## Convenzioni di Codice
-- **Stile:** Codice Python standard.
-- **Encoding:** I file JSON vengono letti/scritti con encoding `utf-8`.
-- **Paths:** Si raccomanda l'uso di percorsi assoluti per gli script configurati per evitare errori di "file not found" se la working directory cambia.
+---
+
+## 📂 PROJECT STRUCTURE
+- `src/`: Cartella contenente i sorgenti.
+  - `dashboard_app/`: Pacchetto principale dell'applicazione.
+    - `__init__.py`: Punto di ingresso del pacchetto.
+    - `__main__.py`: Supporto per l'esecuzione come modulo (`python -m`).
+    - `config.py`: Gestione configurazioni e costanti.
+    - `models.py`: Modelli dati (ScriptModel).
+    - `storage.py`: Persistenza JSON e Repository.
+    - `process.py`: Logica di esecuzione processi (ProcessManager).
+    - `main_window.py`: Controller della finestra principale.
+    - `ui/`: Componenti dell'interfaccia utente.
+      - `dialogs.py`: Finestre di dialogo.
+      - `widgets.py`: Widget personalizzati (Card, LogArea).
+- `pyproject.toml`: Configurazione di Poetry.
+- `start_dashboard.bat`: Launcher ottimizzato per Poetry (avvio silenzioso senza console CMD).
+
+---
+
+## 🛠️ DEVELOPMENT CONVENTIONS
+
+### 🏗️ Architettura SRP (Single Responsibility Principle)
+Il progetto è stato scomposto in moduli indipendenti per garantire scalabilità e manutenibilità:
+1. **Configurazione:** Isolata in `config.py`.
+2. **Dati:** Modelli tipizzati in `models.py` e repository in `storage.py`.
+3. **Logica di Processo:** Separata dalla UI in `process.py`, utilizza `QProcess` per l'asincronia.
+4. **UI:** Suddivisa tra controller principale (`main_window.py`) e componenti riutilizzabili (`ui/`).
+
+### 📝 Logging
+I log vengono visualizzati in un widget `QTextEdit` dedicato. L'output standard degli script viene catturato riga per riga e inviato alla GUI tramite segnali.
+
+### ⚠️ Error Handling
+- Verifica visiva dei percorsi (bordo rosso sulle card se lo script non esiste).
+- Gestione robusta dell'arresto dei processi tramite `taskkill /F /T`.

@@ -8,7 +8,7 @@ Questa è una **Dashboard GUI** sviluppata in Python per la gestione centralizza
 - **Dependency Management:** [Poetry](https://python-poetry.org/)
 - **GUI Framework:** [PySide6](https://doc.qt.io/qtforpython-6/) (Qt for Python)
 - **Aesthetic:** Tema Chiaro nativo con stile "Fusion".
-- **Execution:** `subprocess` con gestione multithreading.
+- **Execution:** `QProcess` (asincrono) con monitoraggio log in tempo reale.
 - **Persistence:** File JSON (`config.json`, `data.json`).
 
 ---
